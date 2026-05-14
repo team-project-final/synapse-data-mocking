@@ -208,6 +208,14 @@ function ChunkingVisualizer() {
   const [chunkSize, setChunkSize] = useState(80);
   const [overlap, setOverlap] = useState(20);
 
+  const estimateTokens = (str) => {
+    let tokens = 0;
+    for (let j = 0; j < str.length; j++) {
+      tokens += str.charCodeAt(j) > 127 ? 1 : 0.25;
+    }
+    return Math.ceil(tokens);
+  };
+
   const chunks = useMemo(() => {
     const result = [];
     let pos = 0;
@@ -215,7 +223,7 @@ function ChunkingVisualizer() {
     while (pos < text.length) {
       const end = Math.min(pos + chunkSize, text.length);
       const chunk = text.slice(pos, end);
-      result.push({ idx: i, text: chunk, tokens: Math.ceil(chunk.length / 2), pos });
+      result.push({ idx: i, text: chunk, tokens: estimateTokens(chunk), pos });
       pos = end - overlap;
       i++;
       if (i > 20) break;
@@ -240,7 +248,7 @@ function ChunkingVisualizer() {
           </Field>
         </div>
         <div className="tiny muted" style={{ marginTop: 12 }}>
-          실제: tiktoken 기반 token 단위 청킹. 청크당 ≈ 500 토큰. <code>POST /internal/embeddings</code> 호출 → pgvector(1536)에 저장.
+          실제: tiktoken 기반 token 단위 청킹. 청크당 ≈ 500 토큰. 여기선 한글≈1, ASCII≈0.25로 추정. <code>POST /internal/embeddings</code> 호출 → pgvector(1536)에 저장.
         </div>
       </div>
       <div>
