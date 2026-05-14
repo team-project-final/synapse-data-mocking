@@ -197,7 +197,7 @@ function PageStrategy() {
 
       <Section num="2" title="도구 스택 매트릭스" sub="언어별 / 레이어별 도구">
         <div className="grid-3">
-          <Panel title="Java / Spring Boot">
+          <Panel title="Java / Spring Boot" right={<span className="pill cyan" style={{ cursor: "pointer", fontSize: 10 }} onClick={() => { window.location.hash = "tools-java"; window.scrollTo({ top: 0, behavior: "smooth" }); }}>→ 상세 가이드</span>}>
             <div className="col" style={{ gap: 8 }}>
               {[
                 ["WireMock", "외부 REST + 서비스 간 mock"],
@@ -213,7 +213,7 @@ function PageStrategy() {
               ))}
             </div>
           </Panel>
-          <Panel title="Python / FastAPI">
+          <Panel title="Python / FastAPI" right={<span className="pill cyan" style={{ cursor: "pointer", fontSize: 10 }} onClick={() => { window.location.hash = "tools-python"; window.scrollTo({ top: 0, behavior: "smooth" }); }}>→ 상세 가이드</span>}>
             <div className="col" style={{ gap: 8 }}>
               {[
                 ["pytest + httpx", "테스트 + AsyncClient"],
@@ -229,7 +229,7 @@ function PageStrategy() {
               ))}
             </div>
           </Panel>
-          <Panel title="Flutter">
+          <Panel title="Flutter" right={<span className="pill cyan" style={{ cursor: "pointer", fontSize: 10 }} onClick={() => { window.location.hash = "tools-flutter"; window.scrollTo({ top: 0, behavior: "smooth" }); }}>→ 상세 가이드</span>}>
             <div className="col" style={{ gap: 8 }}>
               {[
                 ["Mockito", "Repository/Provider mock"],
