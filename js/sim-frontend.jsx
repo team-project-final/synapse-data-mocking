@@ -114,7 +114,7 @@ function MockArchitecture() {
   const mocks = [
     { name: "MockInterceptor", sub: "dio adapter — 가로채기", at: 3, hot: "Widget Tests" },
     { name: "Mock Repository", sub: "Mockito generated", at: 2, hot: "Provider Unit Tests" },
-    { name: "Fixture Factory", sub: "JSON 응답 49+", at: 4, hot: "Golden Tests" }
+    { name: "Fixture Factory", sub: `JSON 응답 ${MOCK_RESPONSES.length}개`, at: 4, hot: "Golden Tests" }
   ];
   return (
     <div className="grid-2">

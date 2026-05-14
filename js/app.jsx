@@ -560,7 +560,7 @@ function PageFrontend() {
         </Panel>
       </Section>
 
-      <Section num="2" title="Mock 응답 카탈로그" sub="49+ 응답 fixture · MockDioAdapter 등록 코드 자동 생성">
+      <Section num="2" title="Mock 응답 카탈로그" sub={`${MOCK_RESPONSES.length}개 응답 fixture · MockDioAdapter 등록 코드 자동 생성`}>
         <Panel title="Mock Response Browser" badge="SIM 16" sub="필터/검색 + 응답 body + Dart 코드 미리보기">
           <MockResponseBrowser />
         </Panel>

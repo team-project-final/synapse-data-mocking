@@ -46,7 +46,7 @@ const DOCS = [
     id: "frontend",
     title: "Frontend (Flutter)",
     en: "synapse-frontend",
-    summary: "dio MockInterceptor + Mockito Repository mock + 49+ 목 응답 + Golden Test 데이터셋.",
+    summary: "dio MockInterceptor + Mockito Repository mock + 목 응답 fixture + Golden Test 데이터셋.",
     tags: ["Flutter", "dio", "Mockito", "Riverpod"]
   },
   {
