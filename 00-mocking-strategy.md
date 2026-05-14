@@ -524,3 +524,155 @@ def es_container():
 | `05-frontend-mocking.md` | → 01~04 (API 응답 형식 참조) |
 | `06-kafka-event-mocking.md` | → synapse-shared 레포 Avro 스키마 |
 | `07-external-api-mocking.md` | (독립) |
+
+---
+
+## 9. 테스트 데이터 Teardown 전략
+
+### 9.1 서비스별 권장 방식
+
+| 서비스 | 방식 | 이유 |
+|--------|------|------|
+| platform-svc (Java) | `@Transactional` 롤백 | 대부분 단일 DB 트랜잭션. 속도 우선 |
+| engagement-svc (Java) | `@Sql(executionPhase=AFTER, scripts="truncate.sql")` | Redis + DB 혼합 — 롤백만으로 Redis 정리 불가 |
+| knowledge-svc (Java) | Testcontainers 재생성 | ES + pgvector + S3 — 컨테이너 재시작이 가장 깔끔 |
+| learning-card (Java) | `@Transactional` 롤백 | 단일 DB |
+| learning-ai (Python) | `pytest` fixture scope=function | fakeredis + Testcontainers 자동 정리 |
+
+### 9.2 Teardown 순서 주의사항
+
+```sql
+-- truncate.sql (FK 의존성 순서 준수)
+TRUNCATE TABLE xp_events, user_badges, user_xp_summary CASCADE;
+TRUNCATE TABLE shared_decks, group_members, study_groups CASCADE;
+-- Redis는 @AfterEach에서 flushAll()
+```
+
+### 9.3 안티패턴
+
+- `DELETE FROM` 대신 `TRUNCATE ... CASCADE` 사용 (FK 제약 자동 처리)
+- `@DirtiesContext`는 느리므로 최후 수단으로만 사용
+
+---
+
+## 10. 병렬 테스트 실행 안전성
+
+### 10.1 JUnit 5 병렬 설정
+
+```properties
+# junit-platform.properties
+junit.jupiter.execution.parallel.enabled = true
+junit.jupiter.execution.parallel.mode.default = same_thread
+junit.jupiter.execution.parallel.mode.classes.default = concurrent
+```
+
+### 10.2 포트 충돌 방지
+
+- `@AutoConfigureWireMock(port = 0)` — 랜덤 포트 할당
+- `@DynamicPropertySource`로 런타임에 URL 주입
+- Testcontainers는 자동으로 랜덤 포트 매핑
+
+### 10.3 Testcontainers `reuse` 모드
+
+```properties
+# ~/.testcontainers.properties
+testcontainers.reuse.enable=true
+```
+
+```java
+@Container
+static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("pgvector/pgvector:pg16")
+    .withReuse(true);
+```
+
+- 장점: 컨테이너 시작 시간 절약 (첫 실행 후 재사용)
+- 주의: 테스트 간 데이터 격리를 teardown으로 보장해야 함
+
+---
+
+## 11. Contract 버전 관리 전략
+
+### 11.1 Stub 버전 네이밍
+
+```
+com.synapse:learning-card:1.2.0:stubs
+```
+
+- MAJOR: 하위 호환성 깨지는 변경 (필드 삭제, 타입 변경)
+- MINOR: 하위 호환 변경 (필드 추가, optional 필드)
+- `+` (latest): 개발 환경에서만 사용
+
+### 11.2 계약 변경 프로세스
+
+1. **Provider가 contract 수정** → PR에 contract diff 포함
+2. **Consumer CI에서 새 stub으로 테스트** → 실패 시 사전 감지
+3. **양측 합의 후** → Provider가 stub publish, Consumer가 업데이트
+
+### 11.3 하위 호환성 검증
+
+```java
+@Test
+void contractBackwardCompatibility() {
+    // 이전 버전 stub으로도 현재 Consumer가 동작하는지 검증
+    // stubsMode = CLASSPATH 로 이전 버전 jar 지정
+}
+```
+
+---
+
+## 12. 환경별 Mock 토글 전략
+
+### 12.1 Spring Boot Profile 전환
+
+| 환경 | Profile | Mock 범위 |
+|------|---------|-----------|
+| 로컬 개발 | `local` | Docker Compose (실제 인프라) + WireMock (외부 API) |
+| CI 단위 테스트 | `test` | Testcontainers + WireMock + EmbeddedKafka |
+| CI 통합 테스트 | `integration` | Testcontainers + WireMock |
+| Staging | `staging` | 실제 인프라 + 실제 외부 API (sandbox) |
+
+### 12.2 Flutter Mock 토글
+
+```dart
+// lib/core/config/app_config.dart
+class AppConfig {
+  static bool get useMock =>
+    const bool.fromEnvironment('USE_MOCK', defaultValue: false);
+}
+
+// 빌드 명령
+// 테스트: flutter test
+// Mock 개발: flutter run --dart-define=USE_MOCK=true
+// 프로덕션: flutter run (USE_MOCK=false by default)
+```
+
+---
+
+## 13. 멀티테넌트 격리 테스트 패턴
+
+### 13.1 시드 데이터
+
+- `tenant-...001` (Free) / `tenant-...002` (Team)
+- `user-...001` (tenant-001 소속) / `user-...003` (tenant-002 소속)
+
+### 13.2 공통 격리 테스트 패턴
+
+```java
+@Test
+void tenantIsolation_shouldReject403WhenAccessingOtherTenantData() {
+    // given — tenant-002의 Owner 토큰
+    String token = JwtTestFactory.createToken("user-...003", "tenant-...002", "owner");
+
+    // when — tenant-001의 노트에 접근 시도
+    mockMvc.perform(get("/notes/note-...001")
+        .header("Authorization", "Bearer " + token))
+      .andExpect(status().isForbidden())
+      .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
+}
+```
+
+### 13.3 서비스별 적용
+
+- **knowledge-svc**: 노트/그래프 조회 시 tenantId 필터
+- **engagement-svc**: 그룹/리더보드 tenantId 격리
+- **learning-card**: 덱/카드 조회 시 tenantId WHERE 조건

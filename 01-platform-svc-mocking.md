@@ -663,3 +663,19 @@ notification:
     endpoint-url: http://localhost:${wiremock.server.port}/ses
     from-address: noreply@synapse.app
 ```
+
+---
+
+## Mock Route Map
+
+| # | 서비스/모듈 | 실제 경로 (Production) | Mock 대체 (Test) | Mock 도구 | Fixture 파일 |
+|---|-----------|----------------------|-----------------|-----------|-------------|
+| 1 | platform-svc / auth | `POST https://oauth2.googleapis.com/token` | `POST http://localhost:${wiremock.port}/google/token` | WireMock | `__files/oauth/google-token-success.json` |
+| 2 | platform-svc / auth | `GET https://openidconnect.googleapis.com/v1/userinfo` | `GET http://localhost:${wiremock.port}/google/userinfo` | WireMock | `__files/oauth/google-userinfo.json` |
+| 3 | platform-svc / auth | Redis `refresh_token:{userId}` | Testcontainers Redis | Testcontainers | (런타임 생성) |
+| 4 | platform-svc / billing | `POST https://api.stripe.com/v1/checkout/sessions` | `POST http://localhost:${wiremock.port}/stripe/v1/checkout/sessions` | WireMock | `__files/stripe/checkout-session.json` |
+| 5 | platform-svc / billing | Stripe Webhook → `/billing/webhooks` | WireMock + 수동 POST | WireMock | `__files/stripe/webhook-checkout-completed.json` |
+| 6 | platform-svc / notification | `POST https://fcm.googleapis.com/v1/.../messages:send` | `POST http://localhost:${wiremock.port}/fcm/v1/.../messages:send` | WireMock | `__files/fcm/send-success.json` |
+| 7 | platform-svc / notification | `POST https://email.us-east-1.amazonaws.com` (SES) | `POST http://localhost:${wiremock.port}/ses` | WireMock | `__files/ses/send-success.xml` |
+| 8 | platform-svc / auth | Kafka `user.registered` (Producer) | EmbeddedKafka | EmbeddedKafka | `fixtures/kafka/user-registered.json` |
+| 9 | platform-svc / audit | Kafka 7개 토픽 (Consumer) | EmbeddedKafka | EmbeddedKafka | `fixtures/kafka/{topic}.json` |

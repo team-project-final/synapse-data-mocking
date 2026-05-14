@@ -607,3 +607,19 @@ env =
     KAFKA_BOOTSTRAP_SERVERS=localhost:9092
     ELASTICSEARCH_URL=http://localhost:9200
 ```
+
+---
+
+## Mock Route Map
+
+| # | 서비스/모듈 | 실제 경로 (Production) | Mock 대체 (Test) | Mock 도구 | Fixture 파일 |
+|---|-----------|----------------------|-----------------|-----------|-------------|
+| 1 | learning-card / srs | PostgreSQL `card_schedules` 테이블 | Testcontainers PG | Testcontainers | `seed/card_schedules.sql` |
+| 2 | learning-card / srs | Kafka `card.reviewed` (Producer) | EmbeddedKafka | EmbeddedKafka | `fixtures/kafka/card-reviewed.json` |
+| 3 | learning-card / srs | Redis `session:{id}` (세션 캐시) | Testcontainers Redis | Testcontainers | (런타임 생성) |
+| 4 | learning-card / contract | `POST /internal/decks/copy` (Provider) | Spring Cloud Contract | Contract Verifier | `contracts/copyDeck.groovy` |
+| 5 | learning-ai / generation | `POST https://api.anthropic.com/v1/messages` | respx mock | respx | `fixtures/anthropic/card-generation.json` |
+| 6 | learning-ai / embeddings | `POST https://api.openai.com/v1/embeddings` | respx mock | respx | `fixtures/openai/embeddings.json` |
+| 7 | learning-ai / cache | Redis `semantic_cache:{hash}` | fakeredis | fakeredis | (런타임 생성) |
+| 8 | learning-ai / search | PostgreSQL+pgvector 시맨틱 검색 | Testcontainers PG(pgvector) | Testcontainers | `seed/note_chunks.sql` |
+| 9 | learning-ai / consumer | Kafka `note.created/updated` (Consumer) | unittest.mock.patch | mock | `fixtures/kafka/note-created.json` |

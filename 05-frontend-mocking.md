@@ -911,3 +911,17 @@ const goldenDecks = [
   {'id': 'deck-002', 'name': '알고리즘 마스터 덱', 'cardCount': 0, 'dueCount': 0},
 ];
 ```
+
+---
+
+## Mock Route Map
+
+| # | 서비스/모듈 | 실제 경로 (Production) | Mock 대체 (Test) | Mock 도구 | Fixture 파일 |
+|---|-----------|----------------------|-----------------|-----------|-------------|
+| 1 | flutter-app / auth | `POST /auth/login`, `POST /auth/signup` | MockDioAdapter | dio mock adapter | `test/fixtures/auth/*.json` |
+| 2 | flutter-app / billing | `GET /billing/plans`, `POST /billing/checkout` | MockDioAdapter | dio mock adapter | `test/fixtures/billing/*.json` |
+| 3 | flutter-app / community | `GET /community/groups`, `POST /community/groups` | MockDioAdapter | dio mock adapter | `test/fixtures/community/*.json` |
+| 4 | flutter-app / gamification | `GET /gamification/xp`, `GET /gamification/leaderboard` | MockDioAdapter | dio mock adapter | `test/fixtures/gamification/*.json` |
+| 5 | flutter-app / notes | `GET /notes`, `POST /notes`, `GET /notes/search` | MockDioAdapter | dio mock adapter | `test/fixtures/notes/*.json` |
+| 6 | flutter-app / learning | `GET /decks`, `GET /reviews/queue`, `POST /ai/generate-cards` | MockDioAdapter | dio mock adapter | `test/fixtures/learning/*.json` |
+| 7 | flutter-app / graph | `GET /graph/data`, `GET /graph/neighbors/:id` | MockDioAdapter | dio mock adapter | `test/fixtures/graph/*.json` |

@@ -558,3 +558,17 @@ internal:
 jwt:
   secret: test-jwt-secret-key-must-be-at-least-256-bits-long-for-hs256
 ```
+
+---
+
+## Mock Route Map
+
+| # | 서비스/모듈 | 실제 경로 (Production) | Mock 대체 (Test) | Mock 도구 | Fixture 파일 |
+|---|-----------|----------------------|-----------------|-----------|-------------|
+| 1 | knowledge-svc / note | Elasticsearch `notes` 인덱스 | Testcontainers ES | Testcontainers | (nori analyzer 매핑) |
+| 2 | knowledge-svc / note | `PUT https://s3.amazonaws.com/{bucket}/{key}` (presigned) | `PUT http://localhost:${wiremock.port}/s3/...` | WireMock | `__files/s3/presigned-put.json` |
+| 3 | knowledge-svc / note | Kafka `note.created/updated/deleted` (Producer) | EmbeddedKafka | EmbeddedKafka | `fixtures/kafka/note-created.json` |
+| 4 | knowledge-svc / note | Kafka `user.deleted` (Consumer) | EmbeddedKafka | EmbeddedKafka | `fixtures/kafka/user-deleted.json` |
+| 5 | knowledge-svc / graph | PostgreSQL `note_links` 테이블 | Testcontainers PG | Testcontainers | `seed/note_links.sql` |
+| 6 | knowledge-svc / chunking | `POST /internal/embeddings` (→ learning-ai) | WireMock | WireMock | `__files/embeddings/embedding-16dim.json` |
+| 7 | knowledge-svc / chunking | PostgreSQL+pgvector `note_chunks` 테이블 | Testcontainers PG(pgvector) | Testcontainers | `seed/note_chunks.sql` |

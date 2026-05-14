@@ -453,3 +453,16 @@ gamification:
     weekly-cron: "0 0 1 * * MON"
     monthly-cron: "0 0 1 1 * *"
 ```
+
+---
+
+## Mock Route Map
+
+| # | 서비스/모듈 | 실제 경로 (Production) | Mock 대체 (Test) | Mock 도구 | Fixture 파일 |
+|---|-----------|----------------------|-----------------|-----------|-------------|
+| 1 | engagement-svc / community | `POST /internal/decks/copy` (→ learning-card) | Spring Cloud Contract stub | Contract Stub Runner | `stubs/copyDeck.groovy` |
+| 2 | engagement-svc / gamification | Kafka `card.reviewed` (Consumer) | EmbeddedKafka | EmbeddedKafka | `fixtures/kafka/card-reviewed.json` |
+| 3 | engagement-svc / gamification | Kafka `gamification.xp.earned` (Producer) | EmbeddedKafka | EmbeddedKafka | `fixtures/kafka/xp-earned.json` |
+| 4 | engagement-svc / gamification | Kafka `gamification.level.up` (Producer) | EmbeddedKafka | EmbeddedKafka | `fixtures/kafka/level-up.json` |
+| 5 | engagement-svc / gamification | Redis `leaderboard:{period}:{key}` (ZSET) | Testcontainers Redis | Testcontainers | (런타임 시드) |
+| 6 | engagement-svc / community | Kafka `community.deck.shared` (Producer) | EmbeddedKafka | EmbeddedKafka | `fixtures/kafka/deck-shared.json` |

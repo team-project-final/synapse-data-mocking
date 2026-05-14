@@ -1103,3 +1103,97 @@ def test_note_created_triggers_card_generation(
 | graph.notes.linked | | | **P** | | |
 
 > **P** = Producer, **C** = Consumer
+
+---
+
+## Kafka Consumer 실패 처리 (DLQ)
+
+### DLQ 네이밍 규칙
+
+```
+{original-topic}.DLQ
+```
+
+예: `note.created.DLQ`, `card.reviewed.DLQ`
+
+### 재시도 정책
+
+| 항목 | 값 |
+|------|-----|
+| 최대 재시도 | 3회 |
+| 백오프 | exponential (1s, 2s, 4s) |
+| DLQ 전송 조건 | 3회 모두 실패 시 |
+
+### Spring Kafka DLQ 설정
+
+```java
+@Bean
+public ConcurrentKafkaListenerContainerFactory<String, Object> kafkaListenerContainerFactory() {
+    var factory = new ConcurrentKafkaListenerContainerFactory<String, Object>();
+    factory.setConsumerFactory(consumerFactory());
+    factory.setCommonErrorHandler(new DefaultErrorHandler(
+        new DeadLetterPublishingRecoverer(kafkaTemplate,
+            (record, ex) -> new TopicPartition(record.topic() + ".DLQ", record.partition())),
+        new ExponentialBackOff(1000L, 2.0) {{ setMaxElapsedTime(10000L); }}
+    ));
+    return factory;
+}
+```
+
+### DLQ 테스트 패턴
+
+```java
+@Test
+void consumeNote_whenProcessingFails_shouldSendToDLQ() {
+    // given — 처리 실패하는 잘못된 이벤트
+    String poisonPill = """
+        {"specversion":"1.0","type":"note.created","data":{"noteId":null}}
+        """;
+
+    kafkaTestHelper.publishAndWait("note.created", "key-1", poisonPill, Duration.ofSeconds(5));
+
+    // then — DLQ에 도착
+    List<ConsumerRecord<String, Object>> dlqRecords =
+        kafkaTestHelper.consumeMessages("note.created.DLQ", 1, Duration.ofSeconds(10));
+    assertThat(dlqRecords).hasSize(1);
+}
+```
+
+---
+
+## user.deleted 이벤트
+
+| 항목 | 값 |
+|------|-----|
+| Producer | platform-svc/auth |
+| Consumers | knowledge-svc/note (soft delete) |
+
+```json
+{
+  "specversion": "1.0",
+  "id": "evt-00000000-0000-0000-0000-000000000302",
+  "source": "synapse/platform-svc",
+  "type": "user.deleted",
+  "subject": "users/user-00000000-0000-0000-0000-000000000001",
+  "time": "2026-01-15T10:00:00Z",
+  "tenantid": "tenant-00000000-0000-0000-0000-000000000001",
+  "datacontenttype": "application/json",
+  "data": {
+    "userId": "user-00000000-0000-0000-0000-000000000001",
+    "reason": "user_requested",
+    "deletedAt": "2026-01-15T10:00:00Z"
+  }
+}
+```
+
+---
+
+## Mock Route Map
+
+| # | 서비스/모듈 | 실제 경로 (Production) | Mock 대체 (Test) | Mock 도구 | Fixture 파일 |
+|---|-----------|----------------------|-----------------|-----------|-------------|
+| 1 | all producers | Kafka broker `kafka:9092` | `@EmbeddedKafka` (in-memory) | EmbeddedKafka | (자동 설정) |
+| 2 | all consumers | Kafka consumer group 구독 | `KafkaTestHelper.consumeMessages()` | EmbeddedKafka | `fixtures/kafka/{topic}.json` |
+| 3 | Java producers | `KafkaTemplate.send(topic, key, event)` | `KafkaTestHelper.publishAndWait()` | EmbeddedKafka | `fixtures/kafka/{topic}.json` |
+| 4 | Python producers | `confluent_kafka.Producer.produce()` | `unittest.mock.MagicMock` | mock | `fixtures/kafka/{topic}.json` |
+| 5 | Schema Registry | `http://schema-registry:8081` | Embedded Schema Registry | EmbeddedKafka | `synapse-shared/src/main/avro/...` |

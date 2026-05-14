@@ -1148,3 +1148,100 @@ async def test_openai_rate_limit_retry():
 | OpenAI API | learning-svc / learning-ai | 임베딩/생성 | 4 |
 | Anthropic Claude | learning-svc / learning-ai | RAG/생성 | 3 |
 | **합계** | | | **35** |
+
+---
+
+## 스트리밍 응답 (SSE) 목킹
+
+### WireMock chunkedDribbleDelay
+
+```java
+stubFor(post("/anthropic/v1/messages")
+    .withRequestBody(containing("stream"))
+    .willReturn(aResponse()
+        .withStatus(200)
+        .withHeader("Content-Type", "text/event-stream")
+        .withBody("""
+            event: content_block_delta
+            data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"머신"}}
+
+            event: content_block_delta
+            data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"러닝은"}}
+
+            event: message_stop
+            data: {"type":"message_stop"}
+
+            """)
+        .withChunkedDribbleDelay(3, 500)
+    ));
+```
+
+### Python respx 스트리밍
+
+```python
+import respx, httpx
+
+@respx.mock
+async def test_streaming_qa():
+    sse_body = (
+        'event: content_block_delta\n'
+        'data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"답변"}}\n\n'
+        'event: message_stop\n'
+        'data: {"type":"message_stop"}\n\n'
+    )
+    respx.post("https://api.anthropic.com/v1/messages").mock(
+        return_value=httpx.Response(200, content=sse_body,
+            headers={"content-type": "text/event-stream"})
+    )
+```
+
+---
+
+## Circuit Breaker 테스트 패턴
+
+### Resilience4j 설정 (application-test.yml)
+
+```yaml
+resilience4j:
+  circuitbreaker:
+    instances:
+      stripe:
+        sliding-window-size: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+```
+
+### WireMock 시나리오 기반 테스트
+
+```java
+@Test
+void stripe_circuitBreaker_shouldOpenAfterFailures() {
+    // given — 첫 3번은 503
+    stubFor(post(urlPathEqualTo("/stripe/v1/checkout/sessions"))
+        .inScenario("cb-test").whenScenarioStateIs(STARTED)
+        .willReturn(aResponse().withStatus(503))
+        .willSetStateTo("fail-1"));
+    // ... fail-2, fail-3 동일 패턴
+
+    // when — 4번째 호출
+    // then — CircuitBreakerOpenException 발생 (WireMock 호출 없이)
+    assertThrows(CallNotPermittedException.class, () ->
+        stripeClient.createCheckoutSession(request));
+}
+```
+
+---
+
+## Mock Route Map
+
+| # | 서비스/모듈 | 실제 경로 (Production) | Mock 대체 (Test) | Mock 도구 | Fixture 파일 |
+|---|-----------|----------------------|-----------------|-----------|-------------|
+| 1 | platform-svc / auth | `POST https://oauth2.googleapis.com/token` | `POST http://localhost:${wiremock.port}/google/token` | WireMock | `__files/oauth/google-*.json` |
+| 2 | platform-svc / auth | `POST https://github.com/login/oauth/access_token` | `POST http://localhost:${wiremock.port}/github/token` | WireMock | `__files/oauth/github-*.json` |
+| 3 | platform-svc / auth | `POST https://appleid.apple.com/auth/token` | `POST http://localhost:${wiremock.port}/apple/token` | WireMock | `__files/oauth/apple-*.json` |
+| 4 | platform-svc / auth | `POST https://login.microsoftonline.com/.../token` | `POST http://localhost:${wiremock.port}/microsoft/token` | WireMock | `__files/oauth/microsoft-*.json` |
+| 5 | platform-svc / billing | `POST https://api.stripe.com/v1/checkout/sessions` | `POST http://localhost:${wiremock.port}/stripe/...` | WireMock | `__files/stripe/*.json` |
+| 6 | platform-svc / notification | `POST https://fcm.googleapis.com/v1/.../messages:send` | `POST http://localhost:${wiremock.port}/fcm/...` | WireMock | `__files/fcm/*.json` |
+| 7 | platform-svc / notification | `POST https://email.us-east-1.amazonaws.com` | `POST http://localhost:${wiremock.port}/ses` | WireMock | `__files/ses/*.xml` |
+| 8 | learning-ai / embeddings | `POST https://api.openai.com/v1/embeddings` | `respx.post(...)` | respx | `fixtures/openai/embeddings.json` |
+| 9 | learning-ai / generation | `POST https://api.anthropic.com/v1/messages` | `respx.post(...)` | respx | `fixtures/anthropic/messages.json` |
