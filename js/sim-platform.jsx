@@ -21,7 +21,7 @@ const STRIPE_EVENTS = [
     label: "invoice.payment_failed",
     desc: "결제 실패 → past_due 상태",
     effect: (state) => ({ ...state, status: "past_due", lastEvent: "invoice.payment_failed" }),
-    kafkaEvent: { type: "billing.subscription.changed", action: "payment_failed", plan: state => state.plan }
+    kafkaEvent: { type: "billing.subscription.changed", action: "payment_failed", plan: null }
   },
   {
     id: "customer.subscription.deleted",
@@ -43,11 +43,15 @@ function StripeWebhookSimulator() {
     setLog(l => [...l, { t, tag: "POST", kind: "send", msg: `/billing/webhooks · <code>${evt.id}</code>` }]);
     setTimeout(() => {
       setLog(l => [...l, { t: new Date().toLocaleTimeString(), tag: "OK", kind: "ok", msg: `Stripe-Signature 검증 통과` }]);
-      setState(prev => evt.effect(prev));
-      setTimeout(() => {
+      setState(prev => {
+        const newState = evt.effect(prev);
         const ke = evt.kafkaEvent;
-        setLog(l => [...l, { t: new Date().toLocaleTimeString(), tag: "KAFKA→", kind: "recv", msg: `<code>${ke.type}</code> · action=${ke.action}` }]);
-      }, 300);
+        const planValue = ke.plan ?? ke.newPlan ?? newState.plan;
+        setTimeout(() => {
+          setLog(l => [...l, { t: new Date().toLocaleTimeString(), tag: "KAFKA→", kind: "recv", msg: `<code>${ke.type}</code> · action=${ke.action} · plan=${planValue}` }]);
+        }, 100);
+        return newState;
+      });
     }, 200);
   };
 
