@@ -37,11 +37,23 @@ function StripeWebhookSimulator() {
   const [state, setState] = useState(initialState);
   const [log, setLog] = useState([]);
   const [signature, setSignature] = useState("whsec_test_mock_secret");
+  const [errorScenario, setErrorScenario] = useState("none");
+  const errorScenarios = [
+    { id: "none", label: "없음 (success)" },
+    { id: "sig_fail", label: "400 Signature verification failed" }
+  ];
 
   const fire = (evt) => {
     const t = new Date().toLocaleTimeString();
     setLog(l => [...l, { t, tag: "POST", kind: "send", msg: `/billing/webhooks · <code>${evt.id}</code>` }]);
     setTimeout(() => {
+      if (errorScenario === "sig_fail") {
+        setLog(l => [...l,
+          { t: new Date().toLocaleTimeString(), tag: "ERR", kind: "err", msg: `400 Bad Request — Stripe-Signature 검증 실패 · <code>No signatures found matching the expected signature</code>` },
+          { t: new Date().toLocaleTimeString(), tag: "HINT", kind: "info", msg: `복구: webhook secret 확인 → <code>whsec_...</code> 값이 Stripe Dashboard와 일치하는지 확인` }
+        ]);
+        return;
+      }
       setLog(l => [...l, { t: new Date().toLocaleTimeString(), tag: "OK", kind: "ok", msg: `Stripe-Signature 검증 통과` }]);
       setState(prev => {
         const newState = evt.effect(prev);
@@ -78,6 +90,9 @@ function StripeWebhookSimulator() {
                 <span className="tiny muted" style={{ fontWeight: 400 }}>{e.desc}</span>
               </button>
             ))}
+          </div>
+          <div style={{ marginTop: 12 }}>
+            <ErrorScenarioToggle scenarios={errorScenarios} value={errorScenario} onChange={setErrorScenario} />
           </div>
           <button className="btn btn-ghost" style={{ marginTop: 12 }} onClick={reset}>↻ 초기화</button>
         </div>

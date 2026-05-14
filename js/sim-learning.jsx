@@ -29,6 +29,11 @@ function SemanticCacheSimulator() {
   const [threshold, setThreshold] = useState(0.95);
   const [activeQuery, setActiveQuery] = useState("오버피팅이 뭔가요?");
   const [log, setLog] = useState([]);
+  const [errorScenario, setErrorScenario] = useState("none");
+  const cacheErrorScenarios = [
+    { id: "none", label: "없음 (정상)" },
+    { id: "cache_error", label: "Redis 연결 실패 (캐시 우회)" }
+  ];
 
   const queryEmbedding = EMBEDDING_BANK[activeQuery];
 
@@ -45,6 +50,13 @@ function SemanticCacheSimulator() {
     const entries = [];
     entries.push({ t, tag: "→", kind: "send", msg: `Query: <code>${activeQuery}</code>` });
     entries.push({ t, tag: "EMBED", kind: "info", msg: `text-embedding-3-small (1536d) · 시뮬레이션에선 16d` });
+    if (errorScenario === "cache_error") {
+      entries.push({ t, tag: "ERR", kind: "err", msg: `Redis ConnectionError — 캐시 조회 불가` });
+      entries.push({ t, tag: "BYPASS", kind: "info", msg: `캐시 우회 → Claude API 직접 호출 (graceful degradation)` });
+      entries.push({ t, tag: "CLAUDE", kind: "send", msg: `Claude API 호출 (캐시 없이)` });
+      setLog(l => [...l, ...entries]);
+      return;
+    }
     if (isHit) {
       entries.push({ t, tag: "HIT", kind: "ok", msg: `시맨틱 캐시 적중 · sim=${best.similarity.toFixed(4)} ≥ ${threshold} · OpenAI 호출 스킵` });
       entries.push({ t, tag: "↩", kind: "ok", msg: `캐시된 답변 반환` });
@@ -75,6 +87,9 @@ function SemanticCacheSimulator() {
           <Field label={`코사인 유사도 임계값: ${threshold}`}>
             <input type="range" min="0.5" max="0.99" step="0.01" value={threshold} className="slider" onChange={e => setThreshold(+e.target.value)} />
           </Field>
+        </div>
+        <div style={{ marginTop: 12 }}>
+          <ErrorScenarioToggle scenarios={cacheErrorScenarios} value={errorScenario} onChange={setErrorScenario} />
         </div>
         <div className="row" style={{ marginTop: 16 }}>
           <button className="btn btn-primary" onClick={submitQuery}>쿼리 실행</button>
@@ -227,10 +242,26 @@ function AICardGeneratorMock() {
   const [count, setCount] = useState(3);
   const [generated, setGenerated] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [aiErrorScenario, setAiErrorScenario] = useState("none");
+  const aiErrorScenarios = [
+    { id: "none", label: "없음 (정상)" },
+    { id: "overloaded", label: "529 Overloaded" },
+    { id: "token_exceeded", label: "400 Token limit exceeded" }
+  ];
 
   const generate = () => {
     setLoading(true);
     setTimeout(() => {
+      if (aiErrorScenario === "overloaded") {
+        setGenerated({ error: true, status: 529, body: { type: "error", error: { type: "overloaded_error", message: "Overloaded" } } });
+        setLoading(false);
+        return;
+      }
+      if (aiErrorScenario === "token_exceeded") {
+        setGenerated({ error: true, status: 400, body: { type: "error", error: { type: "invalid_request_error", message: "max_tokens exceeds model limit" } } });
+        setLoading(false);
+        return;
+      }
       // Mock response (mirrors fixture from 04)
       const mockCards = [
         { cardType: "basic", front: "머신러닝에서 과적합이란?", back: "훈련 데이터에 과도하게 맞춰져 새 데이터에 일반화 못하는 현상", confidence: 0.95 },
@@ -266,6 +297,9 @@ function AICardGeneratorMock() {
             <input type="range" min="1" max="5" value={count} className="slider" onChange={e => setCount(+e.target.value)} />
           </Field>
         </div>
+        <div style={{ marginTop: 12 }}>
+          <ErrorScenarioToggle scenarios={aiErrorScenarios} value={aiErrorScenario} onChange={setAiErrorScenario} />
+        </div>
         <div style={{ marginTop: 16 }}>
           <button className="btn btn-primary" onClick={generate} disabled={loading}>
             {loading ? "Claude 호출 중…" : "AI 카드 생성"}
@@ -282,6 +316,18 @@ function AICardGeneratorMock() {
           <div className="card" style={{ textAlign: "center", padding: 40 }}>
             <div style={{ fontSize: 32, marginBottom: 8 }}>🤖</div>
             <div className="muted tiny">버튼을 눌러 mock 응답을 생성하세요</div>
+          </div>
+        ) : generated.error ? (
+          <div>
+            <div className="row" style={{ marginBottom: 8 }}>
+              <Pill tone="red">{generated.status} Error</Pill>
+              <span className="tiny muted">{generated.body.error.type}</span>
+            </div>
+            <JsonView data={generated.body} max={20} />
+            <div className="tiny muted" style={{ marginTop: 12 }}>
+              {generated.status === 529 ? "재시도: exponential backoff (1s, 2s, 4s). 3회 실패 시 사용자에게 에러 표시." :
+               "입력 텍스트를 줄이거나 max_tokens 설정을 확인하세요."}
+            </div>
           </div>
         ) : (
           <div>
