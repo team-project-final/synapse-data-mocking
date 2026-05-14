@@ -119,5 +119,66 @@ function JsonView({ data, max }) {
   return <pre className="code" style={{ maxHeight: max_ + "vh" }} dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
+// EventBus for cross-simulator state sync
+const SimBus = (() => {
+  const listeners = {};
+  return {
+    on(event, fn) {
+      if (!listeners[event]) listeners[event] = [];
+      listeners[event].push(fn);
+    },
+    off(event, fn) {
+      if (!listeners[event]) return;
+      listeners[event] = listeners[event].filter(f => f !== fn);
+    },
+    emit(event, data) {
+      if (!listeners[event]) return;
+      listeners[event].forEach(fn => fn(data));
+    }
+  };
+})();
+window.__SimBus = SimBus;
+
+function ErrorScenarioToggle({ scenarios, value, onChange }) {
+  return (
+    <Field label="에러 시나리오">
+      <select className="select" value={value} onChange={e => onChange(e.target.value)}>
+        {scenarios.map(s => (
+          <option key={s.id} value={s.id}>{s.label}</option>
+        ))}
+      </select>
+    </Field>
+  );
+}
+
+function ResetBtn({ onClick }) {
+  return (
+    <button className="btn btn-ghost" onClick={onClick}>↻ 초기화</button>
+  );
+}
+
+function MockRouteBadge({ service, module, from, fromUrl, to, toUrl, file }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="card card-tight" style={{ borderColor: "var(--line-2)", fontSize: 12, cursor: "pointer", marginTop: 12 }} onClick={() => setOpen(!open)}>
+      <div className="row" style={{ justifyContent: "space-between" }}>
+        <span style={{ color: "var(--cyan-bright)", fontWeight: 600, fontFamily: "var(--font-mono)", fontSize: 11 }}>
+          {open ? "▼" : "▶"} MOCK ROUTE
+        </span>
+        <Pill tone="violet">{service}/{module}</Pill>
+      </div>
+      {open && (
+        <div className="col" style={{ gap: 4, marginTop: 8 }}>
+          <div><span className="tiny muted">FROM:</span> <span className="tiny">{from}</span></div>
+          {fromUrl && <div className="tiny mono muted" style={{ paddingLeft: 12 }}>{fromUrl}</div>}
+          <div><span className="tiny muted">TO:</span> <span className="tiny">{to}</span></div>
+          {toUrl && <div className="tiny mono muted" style={{ paddingLeft: 12 }}>{toUrl}</div>}
+          {file && <div><span className="tiny muted">FILE:</span> <code className="tiny">{file}</code></div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Expose
-Object.assign(window, { useState, useEffect, useRef, useMemo, useCallback, Fragment, Pill, Section, Panel, Field, Switch, Log, Code, CopyBtn, StatCard, JsonView });
+Object.assign(window, { useState, useEffect, useRef, useMemo, useCallback, Fragment, Pill, Section, Panel, Field, Switch, Log, Code, CopyBtn, StatCard, JsonView, SimBus, ErrorScenarioToggle, ResetBtn, MockRouteBadge });
