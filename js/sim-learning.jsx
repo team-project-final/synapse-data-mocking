@@ -50,7 +50,7 @@ function SemanticCacheSimulator() {
       entries.push({ t, tag: "↩", kind: "ok", msg: `캐시된 답변 반환` });
     } else {
       entries.push({ t, tag: "MISS", kind: "err", msg: `캐시 미스 · best sim=${best?.similarity.toFixed(4) || 0} < ${threshold}` });
-      entries.push({ t, tag: "OPENAI", kind: "send", msg: `Claude API 호출 (input ~500t, output ~300t)` });
+      entries.push({ t, tag: "CLAUDE", kind: "send", msg: `Claude API 호출 (input ~500t, output ~300t)` });
       entries.push({ t, tag: "CACHE←", kind: "info", msg: `응답을 캐시에 저장` });
       // Add to cache
       setCached(c => [...c, { query: activeQuery, answer: `(Claude 응답: ${activeQuery})`, embedding: queryEmbedding }]);
