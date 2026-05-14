@@ -90,11 +90,11 @@ function CloudEventsBuilder() {
 
   const evt = {
     specversion: "1.0",
-    id: "evt-" + Math.random().toString(16).slice(2, 10) + "-...",
+    id: CLOUD_EVENT_IDS[topic] || "evt-unknown",
     source: tpl.source,
     type: topic,
     subject: tpl.subjectPattern.replace(/\{(\w+)\}/g, (_, k) => tpl.data[k] || `{${k}}`),
-    time: "2026-01-15T10:00:00Z",
+    time: BASE_DATE,
     tenantid: "tenant-00000000-0000-0000-0000-000000000001",
     datacontenttype: "application/json",
     data: tpl.data

@@ -176,4 +176,27 @@ const MOCK_RESPONSES = [
     body: { success: false, error: { code: "RATE_LIMIT_EXCEEDED", message: "요청 한도를 초과했습니다." } } }
 ];
 
-Object.assign(window, { DOCS, TOPICS, SEED_IDS, MOCK_RESPONSES });
+const BASE_DATE = "2026-01-15T10:00:00Z";
+
+const CLOUD_EVENT_IDS = {
+  "note.created": "evt-00000000-0000-0000-0000-000000000101",
+  "note.updated": "evt-00000000-0000-0000-0000-000000000102",
+  "note.deleted": "evt-00000000-0000-0000-0000-000000000103",
+  "card.reviewed": "evt-00000000-0000-0000-0000-000000000201",
+  "user.registered": "evt-00000000-0000-0000-0000-000000000301",
+  "user.deleted": "evt-00000000-0000-0000-0000-000000000302",
+  "billing.subscription.changed": "evt-00000000-0000-0000-0000-000000000401",
+  "audit.event": "evt-00000000-0000-0000-0000-000000000501",
+  "community.deck.shared": "evt-00000000-0000-0000-0000-000000000601",
+  "community.note.shared": "evt-00000000-0000-0000-0000-000000000602",
+  "community.group.created": "evt-00000000-0000-0000-0000-000000000603",
+  "community.group.joined": "evt-00000000-0000-0000-0000-000000000604",
+  "community.report.created": "evt-00000000-0000-0000-0000-000000000605",
+  "gamification.xp.earned": "evt-00000000-0000-0000-0000-000000000701",
+  "gamification.badge.earned": "evt-00000000-0000-0000-0000-000000000702",
+  "gamification.level.up": "evt-00000000-0000-0000-0000-000000000703",
+  "notification.send": "evt-00000000-0000-0000-0000-000000000801",
+  "card.review.due": "evt-00000000-0000-0000-0000-000000000901"
+};
+
+Object.assign(window, { DOCS, TOPICS, SEED_IDS, MOCK_RESPONSES, BASE_DATE, CLOUD_EVENT_IDS });
