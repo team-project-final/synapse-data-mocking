@@ -33,14 +33,16 @@ function Topbar({ tab, setTab, onOpenDoc }) {
         </div>
       </div>
       <div className="topbar-inner" style={{ paddingTop: 0, paddingBottom: 0 }}>
-        <nav className="tabnav" style={{ width: "100%" }}>
-          {DOCS.map(d => (
-            <button key={d.id} className={"tab" + (tab === d.id ? " active" : "")} onClick={() => setTab(d.id)}>
-              <span className="tab-idx">{d.idx}</span>
-              <span>{d.title}</span>
-            </button>
-          ))}
-        </nav>
+        <div className="tabnav-wrap" style={{ width: "100%" }}>
+          <nav className="tabnav" style={{ width: "100%" }}>
+            {DOCS.map(d => (
+              <button key={d.id} className={"tab" + (tab === d.id ? " active" : "")} onClick={() => setTab(d.id)}>
+                <span className="tab-idx">{d.idx}</span>
+                <span>{d.title}</span>
+              </button>
+            ))}
+          </nav>
+        </div>
       </div>
     </div>
   );
@@ -806,6 +808,11 @@ function App() {
     setTabState(newTab);
     window.location.hash = newTab;
     window.scrollTo({ top: 0, behavior: "smooth" });
+    // Scroll active tab into view in tabnav
+    setTimeout(() => {
+      const activeTab = document.querySelector(".tab.active");
+      if (activeTab) activeTab.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+    }, 50);
   };
 
   useEffect(() => {

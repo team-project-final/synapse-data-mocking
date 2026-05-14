@@ -68,7 +68,7 @@ const DOCS = [
   {
     idx: "08",
     id: "tools-java",
-    title: "Java 목킹 도구",
+    title: "Java Tools",
     en: "Java Mocking Tools",
     summary: "WireMock, Testcontainers, EmbeddedKafka, Spring Cloud Contract, Mockito — 설치부터 Synapse 맞춤 구성까지.",
     tags: ["WireMock 3.5", "Testcontainers 2.x", "EmbeddedKafka", "Mockito"]
@@ -76,7 +76,7 @@ const DOCS = [
   {
     idx: "09",
     id: "tools-python",
-    title: "Python 목킹 도구",
+    title: "Python Tools",
     en: "Python Mocking Tools",
     summary: "pytest+httpx, respx, fakeredis, testcontainers-python — AI 서비스 테스트 환경 구축.",
     tags: ["pytest 9.x", "respx", "fakeredis", "httpx"]
@@ -84,7 +84,7 @@ const DOCS = [
   {
     idx: "10",
     id: "tools-flutter",
-    title: "Flutter 목킹 도구",
+    title: "Flutter Tools",
     en: "Flutter Mocking Tools",
     summary: "dio mock adapter, Mockito, flutter_test, mocktail — 프론트엔드 목 테스트 가이드.",
     tags: ["dio mock", "Mockito 5.4", "flutter_test", "mocktail"]

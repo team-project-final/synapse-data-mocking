@@ -210,10 +210,9 @@ code, pre, .mono { font-family: var(--font-mono); }
    ============================================ */
 .tabnav {
   display: flex;
-  gap: 4px;
-  padding: 12px 0 0;
-  overflow-x: auto;
-  scrollbar-width: none;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 8px 0 0;
   border-bottom: 1px solid var(--line-1);
   margin-bottom: 32px;
   position: sticky;
@@ -223,21 +222,21 @@ code, pre, .mono { font-family: var(--font-mono); }
   -webkit-backdrop-filter: blur(16px);
   z-index: 40;
 }
-.tabnav::-webkit-scrollbar { display: none; }
+.tabnav-wrap { position: relative; }
 .tab {
   appearance: none;
   background: transparent;
   border: 0;
   color: var(--text-3);
   font-family: var(--font-sans);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
-  padding: 10px 14px;
+  padding: 8px 8px;
   cursor: pointer;
   border-radius: 8px 8px 0 0;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 5px;
   white-space: nowrap;
   position: relative;
   transition: color 0.15s;
@@ -258,7 +257,7 @@ code, pre, .mono { font-family: var(--font-mono); }
 }
 .tab-idx {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 10px;
   color: var(--text-4);
   font-weight: 600;
 }
