@@ -230,6 +230,10 @@ VALUES ('user-...002', '${provider}', '${p.userInfo.sub || p.userInfo.id || "moc
           )}
         </div>
       </div>
+      <MockRouteBadge service="platform-svc" module="auth"
+        from="platform-svc → OAuth Providers" fromUrl="POST /{provider}/token, GET /{provider}/userinfo (4종)"
+        to="WireMock per-provider" toUrl="http://localhost:${wiremock.port}/{provider}/token"
+        file="__files/oauth/{provider}-token-success.json" />
     </div>
   );
 }

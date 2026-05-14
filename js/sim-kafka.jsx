@@ -143,6 +143,10 @@ void verify_${topic.replace(/\./g, "_")}_published() {
           Avro 스키마: <code>synapse-shared/src/main/avro/.../{topic.replace(/^(\w+)\..*/, "$1")}/...</code> · 키: <code>tenantId</code> (보통)
         </div>
       </div>
+      <MockRouteBadge service="all producers" module="Kafka"
+        from="producer-svc → Kafka broker → consumer-svc" fromUrl="KafkaTemplate.send(topic, key, event)"
+        to="EmbeddedKafka" toUrl="@EmbeddedKafka(topics={...}) + KafkaTestHelper"
+        file="fixtures/kafka/{topic}.json" />
     </div>
   );
 }

@@ -99,6 +99,10 @@ adapter.on${selected.method[0].toUpperCase() + selected.method.slice(1).toLowerC
           </div>
         )}
       </div>
+      <MockRouteBadge service="flutter-app" module="all modules"
+        from="Flutter → All service APIs" fromUrl="dio HTTP client → 각 서비스 REST API"
+        to="MockDioAdapter" toUrl="MockDioAdapter.onGet/onPost(path, MockResponse(...))"
+        file="test/fixtures/*.json" />
     </div>
   );
 }

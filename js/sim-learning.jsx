@@ -117,6 +117,9 @@ function SemanticCacheSimulator() {
         <div className="label" style={{ marginBottom: 6 }}>이벤트 로그</div>
         <Log entries={log} height={220} />
       </div>
+      <MockRouteBadge service="learning-ai" module="cache"
+        from="learning-ai → Redis" fromUrl="GET/SET semantic_cache:{hash}"
+        to="fakeredis" toUrl="fakeredis.FakeRedis(decode_responses=True)" />
     </div>
   );
 }
@@ -210,6 +213,9 @@ function HybridSearchRRF() {
       <div className="tiny muted" style={{ marginTop: 16 }}>
         RRF 공식: <code>score(d) = Σ 1 / (k + rank<sub>i</sub>(d))</code>. 양쪽 결과에 모두 등장하는 문서가 상위. k가 작을수록 상위 랭크의 가중치가 큼.
       </div>
+      <MockRouteBadge service="learning-ai" module="search"
+        from="learning-ai → pgvector + Elasticsearch" fromUrl="SELECT ... ORDER BY embedding <=> $1 | GET /notes/_search"
+        to="Testcontainers" toUrl="PostgreSQL(pgvector) + Elasticsearch Testcontainers" />
     </div>
   );
 }
@@ -299,6 +305,10 @@ function AICardGeneratorMock() {
           </div>
         )}
       </div>
+      <MockRouteBadge service="learning-ai" module="generation"
+        from="learning-ai → Anthropic" fromUrl="POST https://api.anthropic.com/v1/messages"
+        to="respx mock" toUrl="respx.post('https://api.anthropic.com/v1/messages').mock(...)"
+        file="fixtures/anthropic/card-generation-success.json" />
     </div>
   );
 }

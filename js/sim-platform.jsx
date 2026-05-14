@@ -89,6 +89,10 @@ function StripeWebhookSimulator() {
           </div>
         </div>
       </div>
+      <MockRouteBadge service="platform-svc" module="billing"
+        from="Stripe → platform-svc" fromUrl="POST https://api.stripe.com → /billing/webhooks"
+        to="WireMock + EmbeddedKafka" toUrl="POST http://localhost:${wiremock.port}/billing/webhooks"
+        file="__files/stripe/checkout-completed.json" />
     </div>
   );
 }
@@ -152,6 +156,10 @@ function QuietHoursChecker() {
           </div>
         </div>
       </div>
+      <MockRouteBadge service="platform-svc" module="notification"
+        from="platform-svc → FCM" fromUrl="POST https://fcm.googleapis.com/v1/.../messages:send"
+        to="WireMock" toUrl="POST http://localhost:${wiremock.port}/fcm/v1/.../messages:send"
+        file="__files/fcm/send-success.json" />
     </div>
   );
 }
@@ -223,6 +231,10 @@ function JwtBuilder() {
           <CopyBtn text={"Bearer " + jwt} />
         </div>
       </div>
+      <MockRouteBadge service="platform-svc" module="auth"
+        from="Client → platform-svc" fromUrl="POST /auth/login → JWT 발급"
+        to="MockDioAdapter fixture" toUrl="Flutter: MockDioAdapter.onPost('/auth/login', ...)"
+        file="test/fixtures/auth/login-success.json" />
     </div>
   );
 }

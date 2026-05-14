@@ -101,6 +101,9 @@ function SM2Simulator() {
           위 버튼을 눌러 카드 평가를 시뮬레이션해보세요.
         </div>
       )}
+      <MockRouteBadge service="learning-card" module="srs"
+        from="학습 카드 내부 로직" fromUrl="SM-2 알고리즘 (순수 함수)"
+        to="Unit Test (mock 없음)" toUrl="@ParameterizedTest @CsvSource" />
     </div>
   );
 }
@@ -255,6 +258,10 @@ function XPSimulator() {
         <div className="label" style={{ marginBottom: 8 }}>이벤트 로그</div>
         <Log entries={state.events.slice(-15)} height={200} />
       </div>
+      <MockRouteBadge service="engagement-svc" module="gamification"
+        from="Kafka card.reviewed → gamification-svc" fromUrl="EmbeddedKafka → XP 적립 로직"
+        to="EmbeddedKafka fixture" toUrl="@EmbeddedKafka topics={card.reviewed, gamification.xp.earned}"
+        file="fixtures/kafka/card-reviewed.json" />
     </div>
   );
 }

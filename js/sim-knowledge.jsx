@@ -70,6 +70,9 @@ function WikilinkParser() {
           links: links.map(l => ({ targetTitle: l.target }))
         }} max={20} />
       </div>
+      <MockRouteBadge service="knowledge-svc" module="note"
+        from="내부 파싱 로직" fromUrl="NoteService.parseWikilinks(content)"
+        to="Unit Test (mock 없음)" toUrl="단위 테스트 — 외부 의존성 없음" />
     </div>
   );
 }
@@ -198,6 +201,10 @@ function KnowledgeGraph() {
           }} max={30} />
         </div>
       ) : null}
+      <MockRouteBadge service="knowledge-svc" module="graph"
+        from="Client → knowledge-svc" fromUrl="GET /graph/neighbors/:id?hops=N"
+        to="MockDioAdapter fixture" toUrl="Flutter: MockDioAdapter.onGet('/graph/neighbors/:id', ...)"
+        file="test/fixtures/graph/neighbors-2hop.json" />
     </div>
   );
 }
@@ -271,6 +278,10 @@ function ChunkingVisualizer() {
   '[0.0023, -0.0121, ...]'::vector(1536), ${chunks[chunks.length - 1]?.tokens || 0}
 );`}</Code>
       </div>
+      <MockRouteBadge service="knowledge-svc" module="chunking"
+        from="knowledge-svc → learning-ai" fromUrl="POST /internal/embeddings"
+        to="WireMock (16-dim)" toUrl="http://localhost:${wiremock.port}/internal/embeddings"
+        file="__files/embeddings/embedding-16dim.json" />
     </div>
   );
 }
