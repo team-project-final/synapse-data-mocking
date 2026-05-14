@@ -220,10 +220,21 @@ function EventFlowSimulator() {
   const [scenario, setScenario] = useState("card.reviewed");
   const [step, setStep] = useState(-1);
   const [running, setRunning] = useState(false);
+  const [manualMode, setManualMode] = useState(false);
 
   const steps = flows[scenario];
 
+  const nextStep = () => {
+    if (step < steps.length - 1) setStep(step + 1);
+    if (step + 1 >= steps.length - 1) setRunning(false);
+  };
+
   const run = () => {
+    if (manualMode) {
+      setStep(0);
+      setRunning(true);
+      return;
+    }
     setStep(-1);
     setRunning(true);
     steps.forEach((s, i) => {
@@ -242,9 +253,15 @@ function EventFlowSimulator() {
             {s}
           </button>
         ))}
+        <Switch checked={manualMode} onChange={setManualMode} label="수동 모드" />
         <button className="btn btn-primary" style={{ marginLeft: "auto" }} onClick={run} disabled={running}>
           {running ? "▶ 실행 중…" : "▶ 시작"}
         </button>
+        {manualMode && running && (
+          <button className="btn" onClick={nextStep} disabled={step >= steps.length - 1}>
+            다음 스텝 →
+          </button>
+        )}
         <button className="btn btn-ghost" onClick={reset}>↻</button>
       </div>
 

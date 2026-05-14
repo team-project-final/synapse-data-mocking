@@ -75,6 +75,11 @@ function OAuthFlowSimulator() {
     if (nextStep < steps.length) setStep(nextStep);
   };
 
+  const back = () => {
+    if (error) { setError(null); return; }
+    if (step > 0) setStep(step - 1);
+  };
+
   const reset = () => { setStep(0); setError(null); };
 
   return (
@@ -124,9 +129,13 @@ function OAuthFlowSimulator() {
             })}
           </div>
           <div className="row" style={{ marginTop: 16 }}>
+            <button className="btn" onClick={back} disabled={step === 0 && !error}>
+              ← 이전
+            </button>
             <button className="btn btn-primary" onClick={next} disabled={step >= steps.length - 1 || !!error}>
               {step === 0 ? "시작 →" : "다음 단계 →"}
             </button>
+            {error && <button className="btn btn-primary" onClick={() => { setError(null); }}>재시도</button>}
             <button className="btn btn-ghost" onClick={reset}>↻ 초기화</button>
           </div>
         </div>

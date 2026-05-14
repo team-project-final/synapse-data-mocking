@@ -10,8 +10,12 @@ function parseWikilinks(text) {
   const re = /\[\[([^\[\]]+)\]\]/g;
   let m;
   while ((m = re.exec(noInlineCode))) {
-    const target = m[1].trim();
-    if (target) links.push({ raw: m[0], target, idx: m.index });
+    const inner = m[1].trim();
+    if (!inner) continue;
+    const parts = inner.split("|");
+    const target = parts[0].trim();
+    const alias = parts.length > 1 ? parts[1].trim() : null;
+    if (target) links.push({ raw: m[0], target, alias, idx: m.index });
   }
   return links;
 }
@@ -33,7 +37,7 @@ function highlightWikilinks(text, links) {
 function WikilinkParser() {
   const [text, setText] = useState(`# 머신러닝 기초 정리
 
-[[딥러닝 기초]] 참조
+[[딥러닝 기초|DL 입문]] 참조 (별칭 링크)
 
 머신러닝은 인공지능의 한 분야로, 데이터에서 패턴을 학습하는 기술이다.
 
@@ -61,13 +65,13 @@ function WikilinkParser() {
         <div className="label" style={{ marginTop: 16, marginBottom: 8 }}>추출된 위키링크</div>
         <div className="row" style={{ gap: 8 }}>
           {links.length === 0 ? <span className="tiny muted">(없음)</span> :
-            links.map((l, i) => <Pill key={i} tone="cyan">{l.target}</Pill>)
+            links.map((l, i) => <Pill key={i} tone="cyan">{l.alias ? `${l.target} (→ ${l.alias})` : l.target}</Pill>)
           }
         </div>
         <div className="label" style={{ marginTop: 16, marginBottom: 6 }}>note.created 이벤트에 포함될 필드</div>
         <JsonView data={{
           noteId: "note-...001",
-          links: links.map(l => ({ targetTitle: l.target }))
+          links: links.map(l => ({ targetTitle: l.target, ...(l.alias ? { alias: l.alias } : {}) }))
         }} max={20} />
       </div>
       <MockRouteBadge service="knowledge-svc" module="note"

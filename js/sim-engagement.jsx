@@ -248,6 +248,44 @@ function XPSimulator() {
             </button>
           ))}
         </div>
+        <div className="row" style={{ gap: 8, marginTop: 8 }}>
+          <button className="btn" style={{ flex: 1 }} onClick={() => {
+            setState(prev => {
+              const newState = { ...prev, streak: prev.streak + 1 };
+              const newBadges = new Set(prev.badges);
+              const events = [{ t: new Date().toLocaleTimeString(), tag: "STREAK", kind: "ok", msg: `스트릭 +1 → ${newState.streak}일` }];
+              for (const b of BADGES) {
+                if (!newBadges.has(b.code) && b.check(newState)) {
+                  newBadges.add(b.code);
+                  events.push({ t: new Date().toLocaleTimeString(), tag: "BADGE", kind: "ok", msg: `${b.icon} gamification.badge.earned · <b>${b.name}</b> (+${b.xpReward} XP)` });
+                  newState.xp += b.xpReward;
+                }
+              }
+              newState.badges = newBadges;
+              newState.events = [...prev.events, ...events];
+              setTimeout(() => SimBus.emit("xp.changed", { xp: newState.xp }), 0);
+              return newState;
+            });
+          }}>
+            스트릭 +1일
+          </button>
+          <input className="input" type="number" style={{ width: 80 }} placeholder="XP"
+            onKeyDown={e => {
+              if (e.key === "Enter" && e.target.value) {
+                const xpVal = parseInt(e.target.value);
+                if (isNaN(xpVal)) return;
+                setState(prev => {
+                  const newState = { ...prev, xp: prev.xp + xpVal };
+                  const events = [{ t: new Date().toLocaleTimeString(), tag: "XP", kind: "ok", msg: `수동 XP +${xpVal}` }];
+                  newState.events = [...prev.events, ...events];
+                  setTimeout(() => SimBus.emit("xp.changed", { xp: newState.xp }), 0);
+                  return newState;
+                });
+                e.target.value = "";
+              }
+            }} />
+          <span className="tiny muted">Enter로 XP 추가</span>
+        </div>
         <button className="btn btn-ghost" style={{ marginTop: 12 }} onClick={reset}>↻ 초기화</button>
 
         <div className="label" style={{ marginTop: 20, marginBottom: 8 }}>현재 통계</div>
