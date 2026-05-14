@@ -18,16 +18,23 @@ function sm2(rating, oldEF, oldInterval, oldReps) {
 }
 
 function SM2Simulator() {
+  const [initEF, setInitEF] = useState(2.5);
+  const [initInterval, setInitInterval] = useState(7);
+  const [initReps, setInitReps] = useState(3);
   const [ef, setEf] = useState(2.5);
-  const [interval, setInterval] = useState(7);
+  const [interval, setInterval_] = useState(7);
   const [reps, setReps] = useState(3);
   const [history, setHistory] = useState([]);
 
   const submit = (rating) => {
     const result = sm2(rating, ef, interval, reps);
-    const dueDate = new Date(Date.UTC(2026, 0, 15));
+    const dueDate = new Date(BASE_DATE);
     dueDate.setUTCDate(dueDate.getUTCDate() + result.interval);
     const due = dueDate.toISOString().slice(0, 10);
+    const branch = rating < 3 ? "reset (rating < 3: interval=1, reps=0)" :
+                   reps === 0 ? "first (reps=0: interval=1)" :
+                   reps === 1 ? "second (reps=1: interval=6)" :
+                   `multiply (${interval} × ${result.ef} ≈ ${result.interval})`;
     setHistory(h => [...h, {
       idx: h.length + 1,
       rating,
@@ -35,15 +42,16 @@ function SM2Simulator() {
       oldInterval: interval,
       newEF: result.ef,
       newInterval: result.interval,
-      due
+      due,
+      branch
     }]);
     setEf(result.ef);
-    setInterval(result.interval);
+    setInterval_(result.interval);
     setReps(result.reps);
   };
 
   const reset = () => {
-    setEf(2.5); setInterval(7); setReps(3); setHistory([]);
+    setEf(initEF); setInterval_(initInterval); setReps(initReps); setHistory([]);
   };
 
   const ratingMeta = [
@@ -63,6 +71,21 @@ function SM2Simulator() {
         <StatCard label="Repetitions" value={reps} hint={`연속 정답 횟수`} />
       </div>
 
+      <div className="card" style={{ marginBottom: 16, padding: 12 }}>
+        <div className="tiny muted" style={{ marginBottom: 8 }}>초기값 설정 (리셋 시 적용)</div>
+        <div className="grid-3" style={{ gap: 12 }}>
+          <Field label={`초기 EF: ${initEF.toFixed(1)}`}>
+            <input type="range" min="1.3" max="3.0" step="0.1" value={initEF} className="slider" onChange={e => setInitEF(+e.target.value)} />
+          </Field>
+          <Field label={`초기 Interval: ${initInterval}일`}>
+            <input type="range" min="1" max="30" step="1" value={initInterval} className="slider" onChange={e => setInitInterval(+e.target.value)} />
+          </Field>
+          <Field label={`초기 Reps: ${initReps}`}>
+            <input type="range" min="0" max="10" step="1" value={initReps} className="slider" onChange={e => setInitReps(+e.target.value)} />
+          </Field>
+        </div>
+      </div>
+
       <div className="label" style={{ marginBottom: 8 }}>평가 제출 (rating 0–5)</div>
       <div className="row" style={{ marginBottom: 16 }}>
         {ratingMeta.map(m => (
@@ -80,7 +103,7 @@ function SM2Simulator() {
           <div className="label" style={{ marginBottom: 8 }}>복습 이력</div>
           <table className="table">
             <thead>
-              <tr><th>#</th><th>rating</th><th>EF</th><th>interval</th><th>next due</th><th>kafka</th></tr>
+              <tr><th>#</th><th>rating</th><th>EF</th><th>interval</th><th>next due</th><th>분기</th><th>kafka</th></tr>
             </thead>
             <tbody>
               {history.map((h, i) => (
@@ -90,6 +113,7 @@ function SM2Simulator() {
                   <td className="mono">{h.oldEF.toFixed(2)} → <span style={{ color: "var(--cyan-bright)" }}>{h.newEF.toFixed(2)}</span></td>
                   <td className="mono">{h.oldInterval}d → <span style={{ color: "var(--cyan-bright)" }}>{h.newInterval}d</span></td>
                   <td className="mono tiny">{h.due}</td>
+                  <td className="tiny muted">{h.branch}</td>
                   <td className="tiny muted">card.reviewed · gamification.xp.earned (+10)</td>
                 </tr>
               ))}
