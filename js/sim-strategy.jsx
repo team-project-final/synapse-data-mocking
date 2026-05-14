@@ -157,12 +157,15 @@ function TimeFixturePlayground() {
   ];
   return (
     <div>
-      <div className="row" style={{ marginBottom: 12 }}>
-        {langs.map(l => (
-          <button key={l.id} className={"btn" + (lang === l.id ? " btn-primary" : "")} onClick={() => setLang(l.id)}>
-            {l.label}
-          </button>
-        ))}
+      <div className="row" style={{ marginBottom: 12, justifyContent: "space-between" }}>
+        <div className="row">
+          {langs.map(l => (
+            <button key={l.id} className={"btn" + (lang === l.id ? " btn-primary" : "")} onClick={() => setLang(l.id)}>
+              {l.label}
+            </button>
+          ))}
+        </div>
+        <CopyBtn text={TIME_SAMPLES[lang]} />
       </div>
       <Code lang={lang}>{TIME_SAMPLES[lang]}</Code>
       <div className="tiny muted" style={{ marginTop: 12 }}>
