@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>06 · Kafka 이벤트 — Synapse Mocking Docs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="doc-style.css" />
+</head>
+<body>
+<div class="doc-shell">
+  <header class="doc-header">
+    <div class="doc-header-meta">
+      <span class="doc-idx">DOC 06</span>
+      <span class="doc-en">Kafka Topics</span>
+    </div>
+    <h1 class="doc-h1">Kafka 이벤트</h1>
+    <div class="doc-links">
+      <a class="doc-link" href="https://github.com/team-project-final/documents/blob/main/docs/mocking/06-kafka-event-mocking.md" target="_blank" rel="noopener">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        GitHub 원본 보기
+      </a>
+      <a class="doc-link" href="https://github.com/team-project-final/documents/raw/main/docs/mocking/06-kafka-event-mocking.md" target="_blank" rel="noopener">📥 raw .md 다운로드</a>
+    </div>
+  </header>
+  <main class="doc-body">
+<h1 id="kafka-이벤트-목킹-정의서">Kafka 이벤트 목킹 정의서</h1>
+<blockquote><strong>프로젝트</strong>: Synapse — 통합 학습-지식 그래프 SaaS <strong>버전</strong>: v1.0 <strong>작성일</strong>: 2026-05-14 <strong>범위</strong>: 전체 18개 Kafka 토픽 fixture + EmbeddedKafka/Python 설정</blockquote>
+<hr/>
+<h2 id="1-cloudevents-기본-래퍼-템플릿">1. CloudEvents 기본 래퍼 템플릿</h2>
+<p>모든 Kafka 이벤트는 CloudEvents 1.0 호환 포맷을 따른다. Avro 스키마는 <code>synapse-shared</code> 레포 (<code>src/main/avro/</code>) 에 정의된다.</p>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"specversion"</span>: <span class="str">"1.0"</span>,
+  <span class="key">"id"</span>: <span class="str">"evt-00000000-0000-0000-0000-000000000001"</span>,
+  <span class="key">"source"</span>: <span class="str">"synapse/{service-name}"</span>,
+  <span class="key">"type"</span>: <span class="str">"{topic.name}"</span>,
+  <span class="key">"subject"</span>: <span class="str">"{resource-type}/{resource-id}"</span>,
+  <span class="key">"time"</span>: <span class="str">"2026-01-15T10:00:00Z"</span>,
+  <span class="key">"tenantid"</span>: <span class="str">"tenant-00000000-0000-0000-0000-000000000001"</span>,
+  <span class="key">"datacontenttype"</span>: <span class="str">"application/json"</span>,
+  <span class="key">"data"</span>: { }
+}</code></pre>
+<hr/>
+<h2 id="2-토픽별-fixture">2. 토픽별 Fixture</h2>
+<h3 id="21-notecreated">2.1 <code>note.created</code></h3>
+<table class="md-table"><thead><tr><th>항목</th><th>값</th></tr></thead><tbody><tr><td><strong>발행</strong></td><td>knowledge-svc / note 모듈</td></tr><tr><td><strong>소비</strong></td><td>learning-ai (자동 카드 생성), knowledge/note (ES 인덱싱)</td></tr><tr><td><strong>Avro 참조</strong></td><td><code>synapse-shared/src/main/avro/knowledge/NoteCreated.avsc</code></td></tr></tbody></table>
+<p><strong>Success Fixture:</strong></p>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"specversion"</span>: <span class="str">"1.0"</span>,
+  <span class="key">"id"</span>: <span class="str">"evt-00000000-0000-0000-0000-000000000101"</span>,
+  <span class="key">"source"</span>: <span class="str">"synapse/knowledge-svc"</span>,
+  <span class="key">"type"</span>: <span class="str">"note.created"</span>,
+  <span class="key">"subject"</span>: <span class="str">"notes/note-00000000-0000-0000-0000-000000000001"</span>,
+  <span class="key">"time"</span>: <span class="str">"2026-01-15T10:00:00Z"</span>,
+  <span class="key">"tenantid"</span>: <span class="str">"tenant-00000000-0000-0000-0000-000000000001"</span>,
+  <span class="key">"datacontenttype"</span>: <span class="str">"application/json"</span>,
+  <span class="key">"data"</span>: {
+    <span class="key">"noteId"</span>: <span class="str">"note-00000000-0000-0000-0000-000000000001"</span>,
+    <span class="key">"userId"</span>: <span class="str">"user-00000000-0000-0000-0000-000000000001"</span>,
+    <span class="key">"title"</span>: <span class="str">"머신러닝 기초 정리"</span>,
+    <span class="key">"contentLength"</span>: <span class="num">2500</span>,
+    <span class="key">"tags"</span>: [<span class="str">"머신러닝"</span>, <span class="str">"AI"</span>],
+    <span class="key">"hasAttachments"</span>: <span class="kw">false</span>
+  }
+}</code></pre>
+<p><strong>Edge Case — 긴 노트 (청킹 대상):</strong></p>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"specversion"</span>: <span class="str">"1.0"</span>,
+  <span class="key">"id"</span>: <span class="str">"evt-00000000-0000-0000-0000-000000000102"</span>,
+  <span class="key">"source"</span>: <span class="str">"synapse/knowledge-svc"</span>,
+  <span class="key">"type"</span>: <span class="str">"note.created"</span>,
+  <span class="key">"subject"</span>: <span class="str">"notes/note-00000000-0000-0000-0000-000000000003"</span>,
+  <span class="key">"time"</span>: <span class="str">"2026-01-15T10:01:00Z"</span>,
+  <span class="key">"tenantid"</span>: <span class="str">"tenant-00000000-0000-0000-0000-000000000001"</span>,
+  <span class="key">"datacontenttype"</span>: <span class="str">"application/json"</span>,
+  <span class="key">"data"</span>: {
+    <span class="key">"noteId"</span>: <span class="str">"note-00000000-0000-0000-0000-000000000003"</span>,
+    <span class="key">"userId"</span>: <span class="str">"user-00000000-0000-0000-0000-000000000001"</span>,
+    <span class="key">"title"</span>: <span class="str">"딥러닝 완전 정복 가이드"</span>,
+    <span class="key">"contentLength"</span>: <span class="num">50000</span>,
+    <span class="key">"tags"</span>: [<span class="str">"딥러닝"</span>, <span class="str">"신경망"</span>, <span class="str">"CNN"</span>, <span class="str">"RNN"</span>],
+    <span class="key">"hasAttachments"</span>: <span class="kw">true</span>
+  }
+}</code></pre>
+<hr/>
+<h3 id="22-noteupdated">2.2 <code>note.updated</code></h3>
+<table class="md-table"><thead><tr><th>항목</th><th>값</th></tr></thead><tbody><tr><td><strong>발행</strong></td><td>knowledge-svc / note 모듈</td></tr><tr><td><strong>소비</strong></td><td>learning-ai (임베딩 재생성), knowledge/note (ES 재인덱싱)</td></tr><tr><td><strong>Avro 참조</strong></td><td><code>synapse-shared/src/main/avro/knowledge/NoteUpdated.avsc</code></td></tr></tbody></table>
+<p><strong>Success Fixture:</strong></p>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"specversion"</span>: <span class="str">"1.0"</span>,
+  <span class="key">"id"</span>: <span class="str">"evt-00000000-0000-0000-0000-000000000201"</span>,
+  <span class="key">"source"</span>: <span class="str">"synapse/knowledge-svc"</span>,
+  <span class="key">"type"</span>: <span class="str">"note.updated"</span>,
+  <span class="key">"subject"</span>: <span class="str">"notes/note-00000000-0000-0000-0000-000000000001"</span>,
+  <span class="key">"time"</span>: <span class="str">"2026-01-15T10:05:00Z"</span>,
+  <span class="key">"tenantid"</span>: <span class="str">"tenant-00000000-0000-0000-0000-000000000001"</span>,
+  <span class="key">"datacontenttype"</span>: <span class="str">"application/json"</span>,
+  <span class="key">"data"</span>: {
+    <span class="key">"noteId"</span>: <span class="str">"note-00000000-0000-0000-0000-000000000001"</span>,
+    <span class="key">"userId"</span>: <span class="str">"user-00000000-0000-0000-0000-000000000001"</span>,
+    <span class="key">"title"</span>: <span class="str">"머신러닝 기초 정리 (수정)"</span>,
+    <span class="key">"contentLength"</span>: <span class="num">3200</span>,
+    <span class="key">"version"</span>: <span class="num">2</span>,
+    <span class="key">"changedFields"</span>: [<span class="str">"title"</span>, <span class="str">"content"</span>],
+    <span class="key">"tags"</span>: [<span class="str">"머신러닝"</span>, <span class="str">"AI"</span>, <span class="str">"정리"</span>]
+  }
+}</code></pre>
+<p><strong>Edge Case — 태그만 변경:</strong></p>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"specversion"</span>: <span class="str">"1.0"</span>,
+  <span class="key">"id"</span>: <span class="str">"evt-00000000-0000-0000-0000-000000000202"</span>,
+  <span class="key">"source"</span>: <span class="str">"synapse/knowledge-svc"</span>,
+  <span class="key">"type"</span>: <span class="str">"note.updated"</span>,
+  <span class="key">"subject"</span>: <span class="str">"notes/note-00000000-0000-0000-0000-000000000001"</span>,
+  <span class="key">"time"</span>: <span class="str">"2026-01-15T10:06:00Z"</span>,
+  <span class="key">"tenantid"</span>: <span class="str">"tenant-00000000-0000-0000-0000-000000000001"</span>,
+  <span class="key">"datacontenttype"</span>: <span class="str">"application/json"</span>,
+  <span class="key">"data"</span>: {
+    <span class="key">"noteId"</span>: <span class="str">"note-00000000-0000-0000-0000-000000000001"</span>,
+    <span class="key">"userId"</span>: <span class="str">"user-00000000-0000-0000-0000-000000000001"</span>,
+    <span class="key">"title"</span>: <span class="str">"머신러닝 기초 정리 (수정)"</span>,
+    <span class="key">"contentLength"</span>: <span class="num">3200</span>,
+    <span class="key">"version"</span>: <span class="num">3</span>,
+    <span class="key">"changedFields"</span>: [<span class="str">"tags"</span>],
+    <span class="key">"tags"</span>: [<span class="str">"머신러닝"</span>, <span class="str">"딥러닝"</span>]
+  }
+}</code></pre>
+<hr/>
+<h3 id="23-notedeleted">2.3 <code>note.deleted</code></h3>
+<table class="md-table"><thead><tr><th>항목</th><th>값</th></tr></thead><tbody><tr><td><strong>발행</strong></td><td>knowledge-svc / note 모듈</td></tr><tr><td><strong>소비</strong></td><td>knowledge/note (ES 인덱스 삭제)</td></tr><tr><td><strong>Avro 참조</strong></td><td><code>synapse-shared/src/main/avro/knowledge/NoteDeleted.avsc</code></td></tr></tbody></table>
+<p><strong>Success Fixture:</strong></p>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"specversion"</span>: <span class="str">"1.0"</span>,
+  <span class="key">"id"</span>: <span class="str">"evt-00000000-0000-0000-0000-000000000301"</span>,
+  <span class="key">"source"</span>: <span class="str">"synapse/knowledge-svc"</span>,
+  <span class="key">"type"</span>: <span class="str">"note.deleted"</span>,
+  <span class="key">"subject"</span>: <span class="str">"notes/note-00000000-0000-0000-0000-000000000001"</span>,
+  <span class="key">"time"</span>: <span class="str">"2026-01-15T10:10:00Z"</span>,
+  <span class="key">"tenantid"</span>: <span class="str">"tenant-00000000-0000-0000-0000-000000000001"</span>,
+  <span class="key">"datacontenttype"</span>: <span class="str">"application/json"</span>,
+  <span class="key">"data"</span>: {
+    <span class="key">"noteId"</span>: <span class="str">"note-00000000-0000-0000-0000-000000000001"</span>,
+    <span class="key">"userId"</span>: <span class="str">"user-00000000-0000-0000-0000-000000000001"</span>
+  }
+}</code></pre>
+<hr/>
+<h3 id="24-cardreviewed">2.4 <code>card.reviewed</code></h3>
+<table class="md-table"><thead><tr><th>항목</th><th>값</th></tr></thead><tbody><tr><td><strong>발행</strong></td><td>learning-svc / card 모듈 (learning-card)</td></tr><tr><td><strong>소비</strong></td><td>engagement-svc / gamification (XP 적립, 통계)</td></tr><tr><td><strong>Avro 참조</strong></td><td><code>synapse-shared/src/main/avro/learning/CardReviewed.avsc</code></td></tr></tbody></table>
+<p><strong>Success Fixture — 정답 (rating 4):</strong></p>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"specversion"</span>: <span class="str">"1.0"</span>,
+  <span class="key">"id"</span>: <span class="str">"evt-00000000-0000-0000-0000-000000000401"</span>,
+  <span class="key">"source"</span>: <span class="str">"synapse/learning-card"</span>,
+  <span class="key">"type"</span>: <span class="str">"card.reviewed"</span>,
+  <span class="key">"subject"</span>: <span class="str">"cards/card-00000000-0000-0000-0000-000000000001"</span>,
+  <span class="key">"time"</span>: <span class="str">"2026-01-15T10:15:00Z"</span>,
+  <span class="key">"tenantid"</span>: <span class="str">"tenant-00000000-0000-0000-0000-000000000001"</span>,
+  <span class="key">"datacontenttype"</span>: <span class="str">"application/json"</span>,
+  <span class="key">"data"</span>: {
+    <span class="key">"userId"</span>: <span class="str">"user-00000000-0000-0000-0000-000000000001"</span>,
+    <span class="key">"cardId"</span>: <span class="str">"card-00000000-0000-0000-0000-000000000001"</span>,
+    <span class="key">"deckId"</span>: <span class="str">"deck-00000000-0000-0000-0000-000000000001"</span>,
+    <span class="key">"rating"</span>: <span class="num">4</span>,
+    <span class="key">"timeSpentMs"</span>: <span class="num">5000</span>,
+    <span class="key">"newInterval"</span>: <span class="num">7</span>,
+    <span class="key">"newEF"</span>: <span class="num">2.6</span>,
+    <span class="key">"nextDueDate"</span>: <span class="str">"2026-01-22"</span>
+  }
+}</code></pre>
+<p><strong>Edge Case — 오답 (rating 1, interval reset):</strong></p>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"specversion"</span>: <span class="str">"1.0"</span>,
+  <span class="key">"id"</span>: <span class="str">"evt-00000000-0000-0000-0000-000000000402"</span>,
+  <span class="key">"source"</span>: <span class="str">"synapse/learning-card"</span>,
+  <span class="key">"type"</span>: <span class="str">"card.reviewed"</span>,
+  <span class="key">"subject"</span>: <span class="str">"cards/card-00000000-0000-0000-0000-000000000002"</span>,
+  <span class="key">"time"</span>: <span class="str">"2026-01-15T10:16:00Z"</span>,
+  <span class="key">"tenantid"</span>: <span class="str">"tenant-00000000-0000-0000-0000-000000000001"</span>,
+  <span class="key">"datacontenttype"</span>: <span class="str">"application/json"</span>,
+  <span class="key">"data"</span>: {
+    <span class="key">"userId"</span>: <span class="str">"user-00000000-0000-0000-0000-000000000001"</span>,
+    <span class="key">"cardId"</span>: <span class="str">"card-00000000-0000-0000-0000-000000000002"</span>,
+    <span class="key">"deckId"</span>: <span class="str">"deck-00000000-0000-0000-0000-000000000001"</span>,
+    <span class="key">"rating"</span>: <span class="num">1</span>,
+    <span class="key">"timeSpentMs"</span>: <span class="num">12000</span>,
+    <span class="key">"newInterval"</span>: <span class="num">1</span>,
+    <span class="key">"newEF"</span>: <span class="num">1.7</span>,
+    <span class="key">"nextDueDate"</span>: <span class="str">"2026-01-16"</span>
+  }
+}</code></pre>
+<hr/>
+<h3 id="25-userregistered">2.5 <code>user.registered</code></h3>
+<table class="md-table"><thead><tr><th>항목</th><th>값</th></tr></thead><tbody><tr><td><strong>발행</strong></td><td>platform-svc / auth 모듈</td></tr><tr><td><strong>소비</strong></td><td>platform-svc / audit (감사 로그)</td></tr><tr><td><strong>Avro 참조</strong></td><td><code>synapse-shared/src/main/avro/platform/UserRegistered.avsc</code></td></tr></tbody></table>
+<p><strong>Success Fixture:</strong></p>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"specversion"</span>: <span class="str">"1.0"</span>,
+  <span class="key">"id"</span>: <span class="str">"evt-00000000-0000-0000-0000-000000000501"</span>,
+  <span class="key">"source"</span>: <span class="str">"synapse/platform-svc"</span>,
+  <span class="key">"type"</span>: <span class="str">"user.registered"</span>,
+  <span class="key">"subject"</span>: <span class="str">"users/user-00000000-0000-0000-0000-000000000001"</span>,
+  <span class="key">"time"</span>: <span class="str">"2026-01-15T10:00:00Z"</span>,
+  <span class="key">"tenantid"</span>: <span class="str">"tenant-00000000-0000-0000-0000-000000000001"</span>,
+  <span class="key">"datacontenttype"</span>: <span class="str">"application/json"</span>,
+  <span class="key">"data"</span>: {
+    <span class="key">"userId"</span>: <span class="str">"user-00000000-0000-0000-0000-000000000001"</span>,
+    <span class="key">"email"</span>: <span class="str">"user1@example.com"</span>,
+    <span class="key">"displayName"</span>: <span class="str">"홍길동"</span>,
+    <span class="key">"tenantId"</span>: <span class="str">"tenant-00000000-0000-0000-0000-000000000001"</span>,
+    <span class="key">"authProvider"</span>: <span class="str">"email"</span>,
+    <span class="key">"locale"</span>: <span class="str">"ko"</span>
+  }
+}</code></pre>
+<p><strong>Edge Case — OAuth 가입:</strong></p>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"specversion"</span>: <span class="str">"1.0"</span>,
+  <span class="key">"id"</span>: <span class="str">"evt-00000000-0000-0000-0000-000000000502"</span>,
+  <span class="key">"source"</span>: <span class="str">"synapse/platform-svc"</span>,
+  <span class="key">"type"</span>: <span class="str">"user.registered"</span>,
+  <span class="key">"subject"</span>: <span class="str">"users/user-00000000-0000-0000-0000-000000000002"</span>,
+  <span class="key">"time"</span>: <span class="str">"2026-01-15T10:01:00Z"</span>,
+  <span class="key">"tenantid"</span>: <span class="str">"tenant-00000000-0000-0000-0000-000000000001"</span>,
+  <span class="key">"datacontenttype"</span>: <span class="str">"application/json"</span>,
+  <span class="key">"data"</span>: {
+    <span class="key">"userId"</span>: <span class="str">"user-00000000-0000-0000-0000-000000000002"</span>,
+    <span class="key">"email"</span>: <span class="str">"user2@gmail.com"</span>,
+    <span class="key">"displayName"</span>: <span class="str">"김영희"</span>,
+    <span class="key">"tenantId"</span>: <span class="str">"tenant-00000000-0000-0000-0000-000000000001"</span>,
+    <span class="key">"authProvider"</span>: <span class="str">"google"</span>,
+    <span class="key">"locale"</span>: <span class="str">"ko"</span>
+  }
+}</code></pre>
+<hr/>
+<h3 id="26-billingsubscriptionchanged">2.6 <code>billing.subscription.changed</code></h3>
+<table class="md-table"><thead><tr><th>항목</th><th>값</th></tr></thead><tbody><tr><td><strong>발행</strong></td><td>platform-svc / billing 모듈</td></tr><tr><td><strong>소비</strong></td><td>platform-svc / audit (감사 로그)</td></tr><tr><td><strong>Avro 참조</strong></td><td><code>synapse-shared/src/main/avro/platform/BillingSubscriptionChanged.avsc</code></td></tr></tbody></table>
+<p><strong>Success Fixture — 업그레이드:</strong></p>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"specversion"</span>: <span class="str">"1.0"</span>,
+  <span class="key">"id"</span>: <span class="str">"evt-00000000-0000-0000-0000-000000000601"</span>,
+  <span class="key">"source"</span>: <span class="str">"synapse/platform-svc"</span>,
+  <span class="key">"type"</span>: <span class="str">"billing.subscription.changed"</span>,
+  <span class="key">"subject"</span>: <span class="str">"tenants/tenant-00000000-0000-0000-0000-000000000001"</span>,
+  <span class="key">"time"</span>: <span class="str">"2026-01-15T10:20:00Z"</span>,
+  <span class="key">"tenantid"</span>: <span class="str">"tenant-00000000-0000-0000-0000-000000000001"</span>,
+  <span class="key">"datacontenttype"</span>: <span class="str">"application/json"</span>,
+  <span class="key">"data"</span>: {
+    <span class="key">"tenantId"</span>: <span class="str">"tenant-00000000-0000-0000-0000-000000000001"</span>,
+    <span class="key">"userId"</span>: <span class="str">"user-00000000-0000-0000-0000-000000000001"</span>,
+    <span class="key">"oldPlan"</span>: <span class="str">"free"</span>,
+    <span class="key">"newPlan"</span>: <span class="str">"pro"</span>,
+    <span class="key">"effectiveDate"</span>: <span class="str">"2026-01-15"</span>,
+    <span class="key">"stripeSubscriptionId"</span>: <span class="str">"sub_mock_001"</span>,
+    <span class="key">"interval"</span>: <span class="str">"month"</span>
+  }
+}</code></pre>
+<p><strong>Edge Case — 다운그레이드:</strong></p>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"specversion"</span>: <span class="str">"1.0"</span>,
+  <span class="key">"id"</span>: <span class="str">"evt-00000000-0000-0000-0000-000000000602"</span>,
+  <span class="key">"source"</span>: <span class="str">"synapse/platform-svc"</span>,
+  <span class="key">"type"</span>: <span class="str">"billing.subscription.changed"</span>,
+  <span class="key">"subject"</span>: <span class="str">"tenants/tenant-00000000-0000-0000-0000-000000000002"</span>,
+  <span class="key">"time"</span>: <span class="str">"2026-01-15T10:25:00Z"</span>,
+  <span class="key">"tenantid"</span>: <span class="str">"tenant-00000000-0000-0000-0000-000000000002"</span>,
+  <span class="key">"datacontenttype"</span>: <span class="str">"application/json"</span>,
+  <span class="key">"data"</span>: {
+    <span class="key">"tenantId"</span>: <span class="str">"tenant-00000000-0000-0000-0000-000000000002"</span>,
+    <span class="key">"userId"</span>: <span class="str">"user-00000000-0000-0000-0000-000000000003"</span>,
+    <span class="key">"oldPlan"</span>: <span class="str">"team"</span>,
+    <span class="key">"newPlan"</span>: <span class="str">"pro"</span>,
+    <span class="key">"effectiveDate"</span>: <span class="str">"2026-02-01"</span>,
+    <span class="key">"stripeSubscriptionId"</span>: <span class="str">"sub_mock_002"</span>,
+    <span class="key">"interval"</span>: <span class="str">"month"</span>
+  }
+}</code></pre>
+<hr/>
+<h3 id="27-auditevent">2.7 <code>audit.event</code></h3>
+<table class="md-table"><thead><tr><th>항목</th><th>값</th></tr></thead><tbody><tr><td><strong>발행</strong></td><td>전 서비스 (cross-service)</td></tr><tr><td><strong>소비</strong></td><td>platform-svc / audit (감사 로그 적재)</td></tr><tr><td><strong>Avro 참조</strong></td><td><code>synapse-shared/src/main/avro/shared/AuditEvent.avsc</code></td></tr></tbody></table>
+<p><strong>Success Fixture:</strong></p>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"specversion"</span>: <span class="str">"1.0"</span>,
+  <span class="key">"id"</span>: <span class="str">"evt-00000000-0000-0000-0000-000000000701"</span>,
+  <span class="key">"source"</span>: <span class="str">"synapse/knowledge-svc"</span>,
+  <span class="key">"type"</span>: <span class="str">"audit.event"</span>,
+  <span class="key">"subject"</span>: <span class="str">"notes/note-00000000-0000-0000-0000-000000000001"</span>,
+  <span class="key">"time"</span>: <span class="str">"2026-01-15T10:00:00Z"</span>,
+  <span class="key">"tenantid"</span>: <span class="str">"tenant-00000000-0000-0000-0000-000000000001"</span>,
+  <span class="key">"datacontenttype"</span>: <span class="str">"application/json"</span>,
+  <span class="key">"data"</span>: {
+    <span class="key">"action"</span>: <span class="str">"note.create"</span>,
+    <span class="key">"userId"</span>: <span class="str">"user-00000000-0000-0000-0000-000000000001"</span>,
+    <span class="key">"resourceType"</span>: <span class="str">"note"</span>,
+    <span class="key">"resourceId"</span>: <span class="str">"note-00000000-0000-0000-0000-000000000001"</span>,
+    <span class="key">"ipAddress"</span>: <span class="str">"192.168.1.100"</span>,
+    <span class="key">"userAgent"</span>: <span class="str">"Mozilla/5.0 Synapse/1.0"</span>,
+    <span class="key">"metadata"</span>: {
+      <span class="key">"title"</span>: <span class="str">"머신러닝 기초 정리"</span>
+    }
+  }
+}</code></pre>
+<p><strong>Edge Case — Idempotency 검증 (동일 ID 재소비):</strong></p>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"specversion"</span>: <span class="str">"1.0"</span>,
+  <span class="key">"id"</span>: <span class="str">"evt-00000000-0000-0000-0000-000000000701"</span>,
+  <span class="key">"source"</span>: <span class="str">"synapse/knowledge-svc"</span>,
+  <span class="key">"type"</span>: <span class="str">"audit.event"</span>,
+  <span class="key">"subject"</span>: <span class="str">"notes/note-00000000-0000-0000-0000-000000000001"</span>,
+  <span class="key">"time"</span>: <span class="str">"2026-01-15T10:00:00Z"</span>,
+  <span class="key">"tenantid"</span>: <span class="str">"tenant-00000000-0000-0000-0000-000000000001"</span>,
+  <span class="key">"datacontenttype"</span>: <span class="str">"application/json"</span>,
+  <span class="key">"data"</span>: {
+    <span class="key">"action"</span>: <span class="str">"note.create"</span>,
+    <span class="key">"userId"</span>: <span class="str">"user-00000000-0000-0000-0000-000000000001"</span>,
+    <span class="key">"resourceType"</span>: <span class="str">"note"</span>,
+    <span class="key">"resourceId"</span>: <span class="str">"note-00000000-0000-0000-0000-000000000001"</span>,
+    <span class="key">"ipAddress"</span>: <span class="str">"192.168.1.100"</span>,
+    <span class="key">"userAgent"</span>: <span class="str">"Mozilla/5.0 Synapse/1.0"</span>,
+    <span class="key">"metadata"</span>: {
+      <span class="key">"title"</span>: <span class="str">"머신러닝 기초 정리"</span>
+    }
+  }
+}</code></pre>
+<blockquote>위 fixture는 2.7의 success fixture와 동일한 <code>id</code>를 사용. <code>processed_events</code> 테이블에 이미 존재하므로 INSERT가 skip되어야 함을 검증한다.</blockquote>
+<hr/>
+<h3 id="28-communitydeckshared">2.8 <code>community.deck.shared</code></h3>
+<table class="md-table"><thead><tr><th>항목</th><th>값</th></tr></thead><tbody><tr><td><strong>발행</strong></td><td>engagement-svc / community 모듈</td></tr><tr><td><strong>소비</strong></td><td>engagement/gamification (XP), platform/notification (알림)</td></tr><tr><td><strong>Avro 참조</strong></td><td><code>synapse-shared/src/main/avro/engagement/CommunityDeckShared.avsc</code></td></tr></tbody></table>
+<p><strong>Success Fixture — 그룹 공유:</strong></p>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"specversion"</span>: <span class="str">"1.0"</span>,
+  <span class="key">"id"</span>: <span class="str">"evt-00000000-0000-0000-0000-000000000801"</span>,
+  <span class="key">"source"</span>: <span class="str">"synapse/engagement-svc"</span>,
+  <span class="key">"type"</span>: <span class="str">"community.deck.shared"</span>,
+  <span class="key">"subject"</span>: <span class="str">"shared-decks/sdeck-00000000-0000-0000-0000-000000000001"</span>,
+  <span class="key">"time"</span>: <span class="str">"2026-01-15T11:00:00Z"</span>,
+  <span class="key">"tenantid"</span>: <span class="str">"tenant-00000000-0000-0000-0000-000000000001"</span>,
+  <span class="key">"datacontenttype"</span>: <span class="str">"application/json"</span>,
+  <span class="key">"data"</span>: {
+    <span class="key">"deckId"</span>: <span class="str">"deck-00000000-0000-0000-0000-000000000001"</span>,
+    <span class="key">"sharedDeckId"</span>: <span class="str">"sdeck-00000000-0000-0000-0000-000000000001"</span>,
+    <span class="key">"sharedByUserId"</span>: <span class="str">"user-00000000-0000-0000-0000-000000000001"</span>,
+    <span class="key">"shareType"</span>: <span class="str">"group"</span>,
+    <span class="key">"targetGroupId"</span>: <span class="str">"group-00000000-0000-0000-0000-000000000001"</span>,
+    <span class="key">"deckTitle"</span>: <span class="str">"프로그래밍 기초 덱"</span>
+  }
+}</code></pre>
+<p><strong>Edge Case — public 공유 (targetGroupId null):</strong></p>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"specversion"</span>: <span class="str">"1.0"</span>,
+  <span class="key">"id"</span>: <span class="str">"evt-00000000-0000-0000-0000-000000000802"</span>,
+  <span class="key">"source"</span>: <span class="str">"synapse/engagement-svc"</span>,
+  <span class="key">"type"</span>: <span class="str">"community.deck.shared"</span>,
+  <span class="key">"subject"</span>: <span class="str">"shared-decks/sdeck-00000000-0000-0000-0000-000000000002"</span>,
+  <span class="key">"time"</span>: <span class="str">"2026-01-15T11:05:00Z"</span>,
+  <span class="key">"tenantid"</span>: <span class="str">"tenant-00000000-0000-0000-0000-000000000001"</span>,
+  <span class="key">"datacontenttype"</span>: <span class="str">"application/json"</span>,
+  <span class="key">"data"</span>: {
+    <span class="key">"deckId"</span>: <span class="str">"deck-00000000-0000-0000-0000-000000000002"</span>,
+    <span class="key">"sharedDeckId"</span>: <span class="str">"sdeck-00000000-0000-0000-0000-000000000002"</span>,
+    <span class="key">"sharedByUserId"</span>: <span class="str">"user-00000000-0000-0000-0000-000000000002"</span>,
+    <span class="key">"shareType"</span>: <span class="str">"public"</span>,
+    <span class="key">"targetGroupId"</span>: <span class="kw">null</span>,
+    <span class="key">"deckTitle"</span>: <span class="str">"알고리즘 마스터 덱"</span>
+  }
+}</code></pre>
+<hr/>
+<h3 id="29-communitynoteshared">2.9 <code>community.note.shared</code></h3>
+<table class="md-table"><thead><tr><th>항목</th><th>값</th></tr></thead><tbody><tr><td><strong>발행</strong></td><td>engagement-svc / community 모듈</td></tr><tr><td><strong>소비</strong></td><td>engagement/gamification (XP), platform/notification (알림)</td></tr><tr><td><strong>Avro 참조</strong></td><td><code>synapse-shared/src/main/avro/engagement/CommunityNoteShared.avsc</code></td></tr></tbody></table>
+<p><strong>Success Fixture:</strong></p>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"specversion"</span>: <span class="str">"1.0"</span>,
+  <span class="key">"id"</span>: <span class="str">"evt-00000000-0000-0000-0000-000000000901"</span>,
+  <span class="key">"source"</span>: <span class="str">"synapse/engagement-svc"</span>,
+  <span class="key">"type"</span>: <span class="str">"community.note.shared"</span>,
+  <span class="key">"subject"</span>: <span class="str">"shared-notes/snote-00000000-0000-0000-0000-000000000001"</span>,
+  <span class="key">"time"</span>: <span class="str">"2026-01-15T11:10:00Z"</span>,
+  <span class="key">"tenantid"</span>: <span class="str">"tenant-00000000-0000-0000-0000-000000000001"</span>,
+  <span class="key">"datacontenttype"</span>: <span class="str">"application/json"</span>,
+  <span class="key">"data"</span>: {
+    <span class="key">"noteId"</span>: <span class="str">"note-00000000-0000-0000-0000-000000000001"</span>,
+    <span class="key">"sharedNoteId"</span>: <span class="str">"snote-00000000-0000-0000-0000-000000000001"</span>,
+    <span class="key">"sharedByUserId"</span>: <span class="str">"user-00000000-0000-0000-0000-000000000001"</span>,
+    <span class="key">"shareType"</span>: <span class="str">"group"</span>,
+    <span class="key">"targetGroupId"</span>: <span class="str">"group-00000000-0000-0000-0000-000000000001"</span>,
+    <span class="key">"noteTitle"</span>: <span class="str">"머신러닝 기초 정리"</span>
+  }
+}</code></pre>
+<hr/>
+<h3 id="210-communitygroupcreated">2.10 <code>community.group.created</code></h3>
+<table class="md-table"><thead><tr><th>항목</th><th>값</th></tr></thead><tbody><tr><td><strong>발행</strong></td><td>engagement-svc / community 모듈</td></tr><tr><td><strong>소비</strong></td><td>engagement/gamification (XP), platform/notification (알림)</td></tr><tr><td><strong>Avro 참조</strong></td><td><code>synapse-shared/src/main/avro/engagement/CommunityGroupCreated.avsc</code></td></tr></tbody></table>
+<p><strong>Success Fixture:</strong></p>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"specversion"</span>: <span class="str">"1.0"</span>,
+  <span class="key">"id"</span>: <span class="str">"evt-00000000-0000-0000-0000-000000001001"</span>,
+  <span class="key">"source"</span>: <span class="str">"synapse/engagement-svc"</span>,
+  <span class="key">"type"</span>: <span class="str">"community.group.created"</span>,
+  <span class="key">"subject"</span>: <span class="str">"groups/group-00000000-0000-0000-0000-000000000001"</span>,
+  <span class="key">"time"</span>: <span class="str">"2026-01-15T09:00:00Z"</span>,
+  <span class="key">"tenantid"</span>: <span class="str">"tenant-00000000-0000-0000-0000-000000000001"</span>,
+  <span class="key">"datacontenttype"</span>: <span class="str">"application/json"</span>,
+  <span class="key">"data"</span>: {
+    <span class="key">"groupId"</span>: <span class="str">"group-00000000-0000-0000-0000-000000000001"</span>,
+    <span class="key">"groupName"</span>: <span class="str">"ML 스터디"</span>,
+    <span class="key">"ownerUserId"</span>: <span class="str">"user-00000000-0000-0000-0000-000000000001"</span>
+  }
+}</code></pre>
+<hr/>
+<h3 id="211-communitygroupjoined">2.11 <code>community.group.joined</code></h3>
+<table class="md-table"><thead><tr><th>항목</th><th>값</th></tr></thead><tbody><tr><td><strong>발행</strong></td><td>engagement-svc / community 모듈</td></tr><tr><td><strong>소비</strong></td><td>engagement/gamification (XP), platform/notification (알림)</td></tr><tr><td><strong>Avro 참조</strong></td><td><code>synapse-shared/src/main/avro/engagement/CommunityGroupJoined.avsc</code></td></tr></tbody></table>
+<p><strong>Success Fixture:</strong></p>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"specversion"</span>: <span class="str">"1.0"</span>,
+  <span class="key">"id"</span>: <span class="str">"evt-00000000-0000-0000-0000-000000001101"</span>,
+  <span class="key">"source"</span>: <span class="str">"synapse/engagement-svc"</span>,
+  <span class="key">"type"</span>: <span class="str">"community.group.joined"</span>,
+  <span class="key">"subject"</span>: <span class="str">"groups/group-00000000-0000-0000-0000-000000000001"</span>,
+  <span class="key">"time"</span>: <span class="str">"2026-01-15T09:30:00Z"</span>,
+  <span class="key">"tenantid"</span>: <span class="str">"tenant-00000000-0000-0000-0000-000000000001"</span>,
+  <span class="key">"datacontenttype"</span>: <span class="str">"application/json"</span>,
+  <span class="key">"data"</span>: {
+    <span class="key">"groupId"</span>: <span class="str">"group-00000000-0000-0000-0000-000000000001"</span>,
+    <span class="key">"userId"</span>: <span class="str">"user-00000000-0000-0000-0000-000000000002"</span>,
+    <span class="key">"role"</span>: <span class="str">"member"</span>
+  }
+}</code></pre>
+<p><strong>Edge Case — admin 역할로 가입:</strong></p>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"specversion"</span>: <span class="str">"1.0"</span>,
+  <span class="key">"id"</span>: <span class="str">"evt-00000000-0000-0000-0000-000000001102"</span>,
+  <span class="key">"source"</span>: <span class="str">"synapse/engagement-svc"</span>,
+  <span class="key">"type"</span>: <span class="str">"community.group.joined"</span>,
+  <span class="key">"subject"</span>: <span class="str">"groups/group-00000000-0000-0000-0000-000000000001"</span>,
+  <span class="key">"time"</span>: <span class="str">"2026-01-15T09:35:00Z"</span>,
+  <span class="key">"tenantid"</span>: <span class="str">"tenant-00000000-0000-0000-0000-000000000001"</span>,
+  <span class="key">"datacontenttype"</span>: <span class="str">"application/json"</span>,
+  <span class="key">"data"</span>: {
+    <span class="key">"groupId"</span>: <span class="str">"group-00000000-0000-0000-0000-000000000001"</span>,
+    <span class="key">"userId"</span>: <span class="str">"user-00000000-0000-0000-0000-000000000004"</span>,
+    <span class="key">"role"</span>: <span class="str">"admin"</span>
+  }
+}</code></pre>
+<hr/>
+<h3 id="212-communityreportcreated">2.12 <code>community.report.created</code></h3>
+<table class="md-table"><thead><tr><th>항목</th><th>값</th></tr></thead><tbody><tr><td><strong>발행</strong></td><td>engagement-svc / community 모듈</td></tr><tr><td><strong>소비</strong></td><td>(admin 대시보드 / 향후 자동 모더레이션)</td></tr><tr><td><strong>Avro 참조</strong></td><td><code>synapse-shared/src/main/avro/engagement/CommunityReportCreated.avsc</code></td></tr></tbody></table>
+<p><strong>Success Fixture:</strong></p>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"specversion"</span>: <span class="str">"1.0"</span>,
+  <span class="key">"id"</span>: <span class="str">"evt-00000000-0000-0000-0000-000000001201"</span>,
+  <span class="key">"source"</span>: <span class="str">"synapse/engagement-svc"</span>,
+  <span class="key">"type"</span>: <span class="str">"community.report.created"</span>,
+  <span class="key">"subject"</span>: <span class="str">"reports/report-00000000-0000-0000-0000-000000000001"</span>,
+  <span class="key">"time"</span>: <span class="str">"2026-01-15T14:00:00Z"</span>,
+  <span class="key">"tenantid"</span>: <span class="str">"tenant-00000000-0000-0000-0000-000000000001"</span>,
+  <span class="key">"datacontenttype"</span>: <span class="str">"application/json"</span>,
+  <span class="key">"data"</span>: {
+    <span class="key">"reportId"</span>: <span class="str">"report-00000000-0000-0000-0000-000000000001"</span>,
+    <span class="key">"reporterUserId"</span>: <span class="str">"user-00000000-0000-0000-0000-000000000002"</span>,
+    <span class="key">"targetType"</span>: <span class="str">"shared_deck"</span>,
+    <span class="key">"targetId"</span>: <span class="str">"sdeck-00000000-0000-0000-0000-000000000001"</span>,
+    <span class="key">"reason"</span>: <span class="str">"inappropriate"</span>
+  }
+}</code></pre>
+<hr/>
+<h3 id="213-gamificationxpearned">2.13 <code>gamification.xp.earned</code></h3>
+<table class="md-table"><thead><tr><th>항목</th><th>값</th></tr></thead><tbody><tr><td><strong>발행</strong></td><td>engagement-svc / gamification 모듈</td></tr><tr><td><strong>소비</strong></td><td>platform-svc / notification (알림)</td></tr><tr><td><strong>Avro 참조</strong></td><td><code>synapse-shared/src/main/avro/engagement/GamificationXpEarned.avsc</code></td></tr></tbody></table>
+<p><strong>Success Fixture — 복습 완료 XP:</strong></p>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"specversion"</span>: <span class="str">"1.0"</span>,
+  <span class="key">"id"</span>: <span class="str">"evt-00000000-0000-0000-0000-000000001301"</span>,
+  <span class="key">"source"</span>: <span class="str">"synapse/engagement-svc"</span>,
+  <span class="key">"type"</span>: <span class="str">"gamification.xp.earned"</span>,
+  <span class="key">"subject"</span>: <span class="str">"users/user-00000000-0000-0000-0000-000000000001"</span>,
+  <span class="key">"time"</span>: <span class="str">"2026-01-15T10:20:00Z"</span>,
+  <span class="key">"tenantid"</span>: <span class="str">"tenant-00000000-0000-0000-0000-000000000001"</span>,
+  <span class="key">"datacontenttype"</span>: <span class="str">"application/json"</span>,
+  <span class="key">"data"</span>: {
+    <span class="key">"userId"</span>: <span class="str">"user-00000000-0000-0000-0000-000000000001"</span>,
+    <span class="key">"eventType"</span>: <span class="str">"review_complete"</span>,
+    <span class="key">"xpAmount"</span>: <span class="num">10</span>,
+    <span class="key">"sourceId"</span>: <span class="str">"card-00000000-0000-0000-0000-000000000001"</span>,
+    <span class="key">"sourceType"</span>: <span class="str">"card"</span>,
+    <span class="key">"newTotalXp"</span>: <span class="num">350</span>,
+    <span class="key">"newLevel"</span>: <span class="num">3</span>
+  }
+}</code></pre>
+<p><strong>Edge Case — 레벨업 동반 XP:</strong></p>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"specversion"</span>: <span class="str">"1.0"</span>,
+  <span class="key">"id"</span>: <span class="str">"evt-00000000-0000-0000-0000-000000001302"</span>,
+  <span class="key">"source"</span>: <span class="str">"synapse/engagement-svc"</span>,
+  <span class="key">"type"</span>: <span class="str">"gamification.xp.earned"</span>,
+  <span class="key">"subject"</span>: <span class="str">"users/user-00000000-0000-0000-0000-000000000001"</span>,
+  <span class="key">"time"</span>: <span class="str">"2026-01-15T10:25:00Z"</span>,
+  <span class="key">"tenantid"</span>: <span class="str">"tenant-00000000-0000-0000-0000-000000000001"</span>,
+  <span class="key">"datacontenttype"</span>: <span class="str">"application/json"</span>,
+  <span class="key">"data"</span>: {
+    <span class="key">"userId"</span>: <span class="str">"user-00000000-0000-0000-0000-000000000001"</span>,
+    <span class="key">"eventType"</span>: <span class="str">"streak_bonus"</span>,
+    <span class="key">"xpAmount"</span>: <span class="num">50</span>,
+    <span class="key">"sourceId"</span>: <span class="str">"streak-7"</span>,
+    <span class="key">"sourceType"</span>: <span class="str">"streak"</span>,
+    <span class="key">"newTotalXp"</span>: <span class="num">500</span>,
+    <span class="key">"newLevel"</span>: <span class="num">4</span>
+  }
+}</code></pre>
+<hr/>
+<h3 id="214-gamificationbadgeearned">2.14 <code>gamification.badge.earned</code></h3>
+<table class="md-table"><thead><tr><th>항목</th><th>값</th></tr></thead><tbody><tr><td><strong>발행</strong></td><td>engagement-svc / gamification 모듈</td></tr><tr><td><strong>소비</strong></td><td>platform-svc / notification (알림)</td></tr><tr><td><strong>Avro 참조</strong></td><td><code>synapse-shared/src/main/avro/engagement/GamificationBadgeEarned.avsc</code></td></tr></tbody></table>
+<p><strong>Success Fixture:</strong></p>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"specversion"</span>: <span class="str">"1.0"</span>,
+  <span class="key">"id"</span>: <span class="str">"evt-00000000-0000-0000-0000-000000001401"</span>,
+  <span class="key">"source"</span>: <span class="str">"synapse/engagement-svc"</span>,
+  <span class="key">"type"</span>: <span class="str">"gamification.badge.earned"</span>,
+  <span class="key">"subject"</span>: <span class="str">"users/user-00000000-0000-0000-0000-000000000001"</span>,
+  <span class="key">"time"</span>: <span class="str">"2026-01-15T10:30:00Z"</span>,
+  <span class="key">"tenantid"</span>: <span class="str">"tenant-00000000-0000-0000-0000-000000000001"</span>,
+  <span class="key">"datacontenttype"</span>: <span class="str">"application/json"</span>,
+  <span class="key">"data"</span>: {
+    <span class="key">"userId"</span>: <span class="str">"user-00000000-0000-0000-0000-000000000001"</span>,
+    <span class="key">"badgeCode"</span>: <span class="str">"STREAK_7"</span>,
+    <span class="key">"badgeName"</span>: <span class="str">"7일 전사"</span>,
+    <span class="key">"xpReward"</span>: <span class="num">100</span>
+  }
+}</code></pre>
+<hr/>
+<h3 id="215-gamificationlevelup">2.15 <code>gamification.level.up</code></h3>
+<table class="md-table"><thead><tr><th>항목</th><th>값</th></tr></thead><tbody><tr><td><strong>발행</strong></td><td>engagement-svc / gamification 모듈</td></tr><tr><td><strong>소비</strong></td><td>platform-svc / notification (알림)</td></tr><tr><td><strong>Avro 참조</strong></td><td><code>synapse-shared/src/main/avro/engagement/GamificationLevelUp.avsc</code></td></tr></tbody></table>
+<p><strong>Success Fixture:</strong></p>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"specversion"</span>: <span class="str">"1.0"</span>,
+  <span class="key">"id"</span>: <span class="str">"evt-00000000-0000-0000-0000-000000001501"</span>,
+  <span class="key">"source"</span>: <span class="str">"synapse/engagement-svc"</span>,
+  <span class="key">"type"</span>: <span class="str">"gamification.level.up"</span>,
+  <span class="key">"subject"</span>: <span class="str">"users/user-00000000-0000-0000-0000-000000000001"</span>,
+  <span class="key">"time"</span>: <span class="str">"2026-01-15T10:25:00Z"</span>,
+  <span class="key">"tenantid"</span>: <span class="str">"tenant-00000000-0000-0000-0000-000000000001"</span>,
+  <span class="key">"datacontenttype"</span>: <span class="str">"application/json"</span>,
+  <span class="key">"data"</span>: {
+    <span class="key">"userId"</span>: <span class="str">"user-00000000-0000-0000-0000-000000000001"</span>,
+    <span class="key">"oldLevel"</span>: <span class="num">3</span>,
+    <span class="key">"newLevel"</span>: <span class="num">4</span>,
+    <span class="key">"title"</span>: <span class="str">"학자"</span>
+  }
+}</code></pre>
+<hr/>
+<h3 id="216-notificationsend">2.16 <code>notification.send</code></h3>
+<table class="md-table"><thead><tr><th>항목</th><th>값</th></tr></thead><tbody><tr><td><strong>발행</strong></td><td>engagement-svc / gamification, community 모듈</td></tr><tr><td><strong>소비</strong></td><td>platform-svc / notification (알림 발송)</td></tr><tr><td><strong>Avro 참조</strong></td><td><code>synapse-shared/src/main/avro/shared/NotificationSend.avsc</code></td></tr></tbody></table>
+<p><strong>Success Fixture — 레벨업 알림:</strong></p>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"specversion"</span>: <span class="str">"1.0"</span>,
+  <span class="key">"id"</span>: <span class="str">"evt-00000000-0000-0000-0000-000000001601"</span>,
+  <span class="key">"source"</span>: <span class="str">"synapse/engagement-svc"</span>,
+  <span class="key">"type"</span>: <span class="str">"notification.send"</span>,
+  <span class="key">"subject"</span>: <span class="str">"users/user-00000000-0000-0000-0000-000000000001"</span>,
+  <span class="key">"time"</span>: <span class="str">"2026-01-15T10:25:00Z"</span>,
+  <span class="key">"tenantid"</span>: <span class="str">"tenant-00000000-0000-0000-0000-000000000001"</span>,
+  <span class="key">"datacontenttype"</span>: <span class="str">"application/json"</span>,
+  <span class="key">"data"</span>: {
+    <span class="key">"userId"</span>: <span class="str">"user-00000000-0000-0000-0000-000000000001"</span>,
+    <span class="key">"templateCode"</span>: <span class="str">"LEVEL_UP"</span>,
+    <span class="key">"category"</span>: <span class="str">"gamification"</span>,
+    <span class="key">"channel"</span>: <span class="str">"push"</span>,
+    <span class="key">"dataJson"</span>: {
+      <span class="key">"oldLevel"</span>: <span class="num">3</span>,
+      <span class="key">"newLevel"</span>: <span class="num">4</span>,
+      <span class="key">"title"</span>: <span class="str">"학자"</span>
+    }
+  }
+}</code></pre>
+<p><strong>Edge Case — 이메일 채널:</strong></p>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"specversion"</span>: <span class="str">"1.0"</span>,
+  <span class="key">"id"</span>: <span class="str">"evt-00000000-0000-0000-0000-000000001602"</span>,
+  <span class="key">"source"</span>: <span class="str">"synapse/engagement-svc"</span>,
+  <span class="key">"type"</span>: <span class="str">"notification.send"</span>,
+  <span class="key">"subject"</span>: <span class="str">"users/user-00000000-0000-0000-0000-000000000002"</span>,
+  <span class="key">"time"</span>: <span class="str">"2026-01-15T11:00:00Z"</span>,
+  <span class="key">"tenantid"</span>: <span class="str">"tenant-00000000-0000-0000-0000-000000000001"</span>,
+  <span class="key">"datacontenttype"</span>: <span class="str">"application/json"</span>,
+  <span class="key">"data"</span>: {
+    <span class="key">"userId"</span>: <span class="str">"user-00000000-0000-0000-0000-000000000002"</span>,
+    <span class="key">"templateCode"</span>: <span class="str">"DECK_SHARED"</span>,
+    <span class="key">"category"</span>: <span class="str">"community"</span>,
+    <span class="key">"channel"</span>: <span class="str">"email"</span>,
+    <span class="key">"dataJson"</span>: {
+      <span class="key">"deckTitle"</span>: <span class="str">"프로그래밍 기초 덱"</span>,
+      <span class="key">"sharedByName"</span>: <span class="str">"홍길동"</span>,
+      <span class="key">"groupName"</span>: <span class="str">"ML 스터디"</span>
+    }
+  }
+}</code></pre>
+<hr/>
+<h3 id="217-cardreviewdue">2.17 <code>card.review.due</code></h3>
+<table class="md-table"><thead><tr><th>항목</th><th>값</th></tr></thead><tbody><tr><td><strong>발행</strong></td><td>learning-svc / card 모듈 (daily batch)</td></tr><tr><td><strong>소비</strong></td><td>platform-svc / notification (복습 리마인더)</td></tr><tr><td><strong>Avro 참조</strong></td><td><code>synapse-shared/src/main/avro/learning/CardReviewDue.avsc</code></td></tr></tbody></table>
+<p><strong>Success Fixture:</strong></p>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"specversion"</span>: <span class="str">"1.0"</span>,
+  <span class="key">"id"</span>: <span class="str">"evt-00000000-0000-0000-0000-000000001701"</span>,
+  <span class="key">"source"</span>: <span class="str">"synapse/learning-card"</span>,
+  <span class="key">"type"</span>: <span class="str">"card.review.due"</span>,
+  <span class="key">"subject"</span>: <span class="str">"users/user-00000000-0000-0000-0000-000000000001"</span>,
+  <span class="key">"time"</span>: <span class="str">"2026-01-15T07:00:00Z"</span>,
+  <span class="key">"tenantid"</span>: <span class="str">"tenant-00000000-0000-0000-0000-000000000001"</span>,
+  <span class="key">"datacontenttype"</span>: <span class="str">"application/json"</span>,
+  <span class="key">"data"</span>: {
+    <span class="key">"userId"</span>: <span class="str">"user-00000000-0000-0000-0000-000000000001"</span>,
+    <span class="key">"dueCount"</span>: <span class="num">25</span>,
+    <span class="key">"topDeckName"</span>: <span class="str">"프로그래밍 기초 덱"</span>
+  }
+}</code></pre>
+<p><strong>Edge Case — 복습 카드 없음:</strong></p>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"specversion"</span>: <span class="str">"1.0"</span>,
+  <span class="key">"id"</span>: <span class="str">"evt-00000000-0000-0000-0000-000000001702"</span>,
+  <span class="key">"source"</span>: <span class="str">"synapse/learning-card"</span>,
+  <span class="key">"type"</span>: <span class="str">"card.review.due"</span>,
+  <span class="key">"subject"</span>: <span class="str">"users/user-00000000-0000-0000-0000-000000000002"</span>,
+  <span class="key">"time"</span>: <span class="str">"2026-01-15T07:00:00Z"</span>,
+  <span class="key">"tenantid"</span>: <span class="str">"tenant-00000000-0000-0000-0000-000000000001"</span>,
+  <span class="key">"datacontenttype"</span>: <span class="str">"application/json"</span>,
+  <span class="key">"data"</span>: {
+    <span class="key">"userId"</span>: <span class="str">"user-00000000-0000-0000-0000-000000000002"</span>,
+    <span class="key">"dueCount"</span>: <span class="num">0</span>,
+    <span class="key">"topDeckName"</span>: <span class="kw">null</span>
+  }
+}</code></pre>
+<hr/>
+<h3 id="218-graphnoteslinked">2.18 <code>graph.notes.linked</code></h3>
+<table class="md-table"><thead><tr><th>항목</th><th>값</th></tr></thead><tbody><tr><td><strong>발행</strong></td><td>knowledge-svc / graph 모듈</td></tr><tr><td><strong>소비</strong></td><td>(미래 확장 — 추천 시스템)</td></tr><tr><td><strong>Avro 참조</strong></td><td><code>synapse-shared/src/main/avro/knowledge/GraphNotesLinked.avsc</code></td></tr></tbody></table>
+<p><strong>Success Fixture:</strong></p>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"specversion"</span>: <span class="str">"1.0"</span>,
+  <span class="key">"id"</span>: <span class="str">"evt-00000000-0000-0000-0000-000000001801"</span>,
+  <span class="key">"source"</span>: <span class="str">"synapse/knowledge-svc"</span>,
+  <span class="key">"type"</span>: <span class="str">"graph.notes.linked"</span>,
+  <span class="key">"subject"</span>: <span class="str">"notes/note-00000000-0000-0000-0000-000000000001"</span>,
+  <span class="key">"time"</span>: <span class="str">"2026-01-15T10:02:00Z"</span>,
+  <span class="key">"tenantid"</span>: <span class="str">"tenant-00000000-0000-0000-0000-000000000001"</span>,
+  <span class="key">"datacontenttype"</span>: <span class="str">"application/json"</span>,
+  <span class="key">"data"</span>: {
+    <span class="key">"userId"</span>: <span class="str">"user-00000000-0000-0000-0000-000000000001"</span>,
+    <span class="key">"noteId"</span>: <span class="str">"note-00000000-0000-0000-0000-000000000001"</span>,
+    <span class="key">"linkedNoteId"</span>: <span class="str">"note-00000000-0000-0000-0000-000000000002"</span>,
+    <span class="key">"totalLinks"</span>: <span class="num">3</span>
+  }
+}</code></pre>
+<hr/>
+<h2 id="3-embeddedkafka-설정-spring-boot">3. EmbeddedKafka 설정 (Spring Boot)</h2>
+<h3 id="31-테스트-설정">3.1 테스트 설정</h3>
+<pre class="code-block" data-lang="java"><code><span class="anno">@SpringBootTest</span>
+<span class="anno">@EmbeddedKafka</span>(
+    partitions = <span class="num">1</span>,
+    topics = {
+        <span class="str">"note.created"</span>, <span class="str">"note.updated"</span>, <span class="str">"note.deleted"</span>,
+        <span class="str">"card.reviewed"</span>, <span class="str">"card.review.due"</span>,
+        <span class="str">"user.registered"</span>, <span class="str">"billing.subscription.changed"</span>,
+        <span class="str">"audit.event"</span>,
+        <span class="str">"community.deck.shared"</span>, <span class="str">"community.note.shared"</span>,
+        <span class="str">"community.group.created"</span>, <span class="str">"community.group.joined"</span>,
+        <span class="str">"community.report.created"</span>,
+        <span class="str">"gamification.xp.earned"</span>, <span class="str">"gamification.badge.earned"</span>,
+        <span class="str">"gamification.level.up"</span>,
+        <span class="str">"notification.send"</span>,
+        <span class="str">"graph.notes.linked"</span>
+    },
+    brokerProperties = {
+        <span class="str">"listeners=PLAINTEXT://localhost:9092"</span>,
+        <span class="str">"port=9092"</span>
+    }
+)
+<span class="kw">public</span> <span class="kw">abstract</span> <span class="kw">class</span> AbstractKafkaTest {
+
+    <span class="anno">@Autowired</span>
+    <span class="kw">protected</span> EmbeddedKafkaBroker embeddedKafka;
+
+    <span class="anno">@Autowired</span>
+    <span class="kw">protected</span> KafkaTemplate&lt;<span class="type">String</span>, Object&gt; kafkaTemplate;
+}</code></pre>
+<h3 id="32-applicationtestyml-kafka-섹션">3.2 application-test.yml (Kafka 섹션)</h3>
+<pre class="code-block" data-lang="yaml"><code><span class="key">spring</span>:
+  <span class="key">kafka</span>:
+    <span class="key">bootstrap-servers</span>: ${spring.embedded.kafka.brokers}
+    <span class="key">consumer</span>:
+      <span class="key">auto-offset-reset</span>: earliest
+      <span class="key">group-id</span>: test-group
+      <span class="key">key-deserializer</span>: org.apache.kafka.common.serialization.StringDeserializer
+      <span class="key">value-deserializer</span>: io.confluent.kafka.serializers.KafkaAvroDeserializer
+    <span class="key">producer</span>:
+      <span class="key">key-serializer</span>: org.apache.kafka.common.serialization.StringSerializer
+      <span class="key">value-serializer</span>: io.confluent.kafka.serializers.KafkaAvroSerializer
+    <span class="key">properties</span>:
+      <span class="key">schema.registry.url</span>: mock://test-schema-registry
+      <span class="key">specific.avro.reader</span>: <span class="kw">true</span></code></pre>
+<h3 id="33-kafka-테스트-헬퍼-java">3.3 Kafka 테스트 헬퍼 (Java)</h3>
+<pre class="code-block" data-lang="java"><code><span class="anno">@Component</span>
+<span class="kw">public</span> <span class="kw">class</span> KafkaTestHelper {
+
+    <span class="anno">@Autowired</span>
+    <span class="kw">private</span> KafkaTemplate&lt;<span class="type">String</span>, Object&gt; kafkaTemplate;
+
+    <span class="anno">@Autowired</span>
+    <span class="kw">private</span> EmbeddedKafkaBroker embeddedKafka;
+
+    <span class="cmt">/**
+     * 이벤트를 발행하고 Consumer가 처리할 때까지 대기
+     */</span>
+    <span class="kw">public</span> <span class="kw">void</span> publishAndWait(<span class="type">String</span> topic, <span class="type">String</span> key, Object event, <span class="type">Duration</span> timeout) {
+        kafkaTemplate.send(topic, key, event).join();
+
+        <span class="cmt">// Consumer가 처리할 시간 확보</span>
+        Awaitility.<span class="kw">await</span>()
+            .atMost(timeout)
+            .pollInterval(<span class="type">Duration</span>.ofMillis(<span class="num">100</span>));
+    }
+
+    <span class="cmt">/**
+     * 특정 토픽에서 메시지를 소비하여 반환
+     */</span>
+    <span class="kw">public</span> &lt;T&gt; <span class="type">List</span>&lt;T&gt; consumeMessages(<span class="type">String</span> topic, <span class="type">int</span> expectedCount, <span class="type">Duration</span> timeout) {
+        <span class="type">Map</span>&lt;<span class="type">String</span>, Object&gt; consumerProps = KafkaTestUtils.consumerProps(
+            <span class="str">"test-verify-group"</span>, <span class="str">"true"</span>, embeddedKafka);
+        consumerProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, <span class="str">"earliest"</span>);
+
+        DefaultKafkaConsumerFactory&lt;<span class="type">String</span>, T&gt; factory =
+            <span class="kw">new</span> DefaultKafkaConsumerFactory&lt;&gt;(consumerProps);
+
+        Consumer&lt;<span class="type">String</span>, T&gt; consumer = factory.createConsumer();
+        embeddedKafka.consumeFromAnEmbeddedTopic(consumer, topic);
+
+        ConsumerRecords&lt;<span class="type">String</span>, T&gt; records =
+            KafkaTestUtils.getRecords(consumer, timeout);
+
+        <span class="type">List</span>&lt;T&gt; results = <span class="kw">new</span> ArrayList&lt;&gt;();
+        records.forEach(record -&gt; results.add(record.value()));
+        consumer.close();
+        <span class="kw">return</span> results;
+    }
+
+    <span class="cmt">/**
+     * JSON fixture 파일에서 이벤트를 로드
+     */</span>
+    <span class="kw">public</span> <span class="type">String</span> loadFixture(<span class="type">String</span> path) {
+        <span class="kw">try</span> {
+            <span class="kw">return</span> <span class="kw">new</span> <span class="type">String</span>(
+                Objects.requireNonNull(
+                    getClass().getClassLoader().getResourceAsStream(path)
+                ).readAllBytes(),
+                StandardCharsets.UTF_8
+            );
+        } <span class="kw">catch</span> (IOException e) {
+            <span class="kw">throw</span> <span class="kw">new</span> RuntimeException(<span class="str">"Fixture load failed: "</span> + path, e);
+        }
+    }
+}</code></pre>
+<hr/>
+<h2 id="4-python-kafka-mock-설정">4. Python Kafka Mock 설정</h2>
+<h3 id="41-conftestpy">4.1 conftest.py</h3>
+<pre class="code-block" data-lang="python"><code><span class="kw">import</span> json
+<span class="kw">import</span> pytest
+<span class="kw">from</span> pathlib <span class="kw">import</span> Path
+<span class="kw">from</span> unittest.mock <span class="kw">import</span> MagicMock, AsyncMock
+
+FIXTURE_DIR = Path(__file__).parent / <span class="str">"fixtures"</span> / <span class="str">"kafka"</span>
+
+
+<span class="anno">@pytest</span>.fixture
+<span class="kw">def</span> kafka_producer_mock():
+    <span class="str">"""Mock Kafka producer that captures sent messages."""</span>
+    producer = MagicMock()
+    producer.sent_messages = []
+
+    <span class="kw">def</span> mock_produce(topic, key=<span class="kw">None</span>, value=<span class="kw">None</span>, **kwargs):
+        producer.sent_messages.append({
+            <span class="str">"topic"</span>: topic,
+            <span class="str">"key"</span>: key,
+            <span class="str">"value"</span>: json.loads(value) <span class="kw">if</span> isinstance(value, (str, bytes)) <span class="kw">else</span> value,
+        })
+
+    producer.produce = mock_produce
+    producer.flush = MagicMock()
+    <span class="kw">return</span> producer
+
+
+<span class="anno">@pytest</span>.fixture
+<span class="kw">def</span> kafka_consumer_mock():
+    <span class="str">"""Mock Kafka consumer that returns pre-loaded fixtures."""</span>
+    consumer = MagicMock()
+    consumer._messages = []
+    consumer._index = <span class="num">0</span>
+
+    <span class="kw">def</span> mock_poll(timeout=<span class="num">1.0</span>):
+        <span class="kw">if</span> consumer._index &lt; len(consumer._messages):
+            msg = consumer._messages[consumer._index]
+            consumer._index += <span class="num">1</span>
+            <span class="kw">return</span> msg
+        <span class="kw">return</span> <span class="kw">None</span>
+
+    consumer.poll = mock_poll
+    <span class="kw">return</span> consumer
+
+
+<span class="kw">def</span> load_kafka_fixture(fixture_name: str) -&gt; dict:
+    <span class="str">"""Load a Kafka event fixture from the fixtures directory."""</span>
+    fixture_path = FIXTURE_DIR / f<span class="str">"{fixture_name}.avro.json"</span>
+    <span class="kw">with</span> open(fixture_path) <span class="kw">as</span> f:
+        <span class="kw">return</span> json.load(f)</code></pre>
+<h3 id="42-kafka-consumer-테스트-예시">4.2 Kafka Consumer 테스트 예시</h3>
+<pre class="code-block" data-lang="python"><code><span class="kw">from</span> tests.conftest <span class="kw">import</span> load_kafka_fixture
+
+
+<span class="kw">def</span> test_note_created_triggers_card_generation(
+    kafka_consumer_mock, ai_service_mock
+):
+    <span class="str">"""note.created 이벤트 소비 시 AI 카드 자동 생성이 트리거되는지 검증"""</span>
+    event = load_kafka_fixture(<span class="str">"note_created_success"</span>)
+    kafka_consumer_mock._messages = [event]
+
+    <span class="cmt"># Consumer 처리</span>
+    <span class="kw">from</span> app.ai.consumers <span class="kw">import</span> handle_note_created
+    handle_note_created(event[<span class="str">"data"</span>])
+
+    <span class="cmt"># AI 카드 생성 호출 확인</span>
+    ai_service_mock.generate_cards.assert_called_once_with(
+        note_id=<span class="str">"note-00000000-0000-0000-0000-000000000001"</span>,
+        user_id=<span class="str">"user-00000000-0000-0000-0000-000000000001"</span>,
+        tenant_id=<span class="str">"tenant-00000000-0000-0000-0000-000000000001"</span>
+    )</code></pre>
+<hr/>
+<h2 id="5-토픽서비스-의존성-매트릭스">5. 토픽-서비스 의존성 매트릭스</h2>
+<table class="md-table"><thead><tr><th>토픽</th><th>platform</th><th>engagement</th><th>knowledge</th><th>learning-card</th><th>learning-ai</th></tr></thead><tbody><tr><td>note.created</td><td></td><td></td><td><strong>P</strong></td><td></td><td><strong>C</strong></td></tr><tr><td>note.updated</td><td></td><td></td><td><strong>P</strong></td><td></td><td><strong>C</strong></td></tr><tr><td>note.deleted</td><td></td><td></td><td><strong>P</strong></td><td></td><td></td></tr><tr><td>card.reviewed</td><td></td><td><strong>C</strong></td><td></td><td><strong>P</strong></td><td></td></tr><tr><td>user.registered</td><td><strong>P</strong></td><td></td><td></td><td></td><td></td></tr><tr><td>billing.subscription.changed</td><td><strong>P</strong></td><td></td><td></td><td></td><td></td></tr><tr><td>audit.event</td><td><strong>C</strong></td><td></td><td></td><td></td><td></td></tr><tr><td>community.deck.shared</td><td><strong>C</strong></td><td><strong>P</strong></td><td></td><td></td><td></td></tr><tr><td>community.note.shared</td><td><strong>C</strong></td><td><strong>P</strong></td><td></td><td></td><td></td></tr><tr><td>community.group.created</td><td><strong>C</strong></td><td><strong>P</strong></td><td></td><td></td><td></td></tr><tr><td>community.group.joined</td><td><strong>C</strong></td><td><strong>P</strong></td><td></td><td></td><td></td></tr><tr><td>community.report.created</td><td></td><td><strong>P</strong></td><td></td><td></td><td></td></tr><tr><td>gamification.xp.earned</td><td><strong>C</strong></td><td><strong>P</strong></td><td></td><td></td><td></td></tr><tr><td>gamification.badge.earned</td><td><strong>C</strong></td><td><strong>P</strong></td><td></td><td></td><td></td></tr><tr><td>gamification.level.up</td><td><strong>C</strong></td><td><strong>P</strong></td><td></td><td></td><td></td></tr><tr><td>notification.send</td><td><strong>C</strong></td><td><strong>P</strong></td><td></td><td></td><td></td></tr><tr><td>card.review.due</td><td><strong>C</strong></td><td></td><td></td><td><strong>P</strong></td><td></td></tr><tr><td>graph.notes.linked</td><td></td><td></td><td><strong>P</strong></td><td></td><td></td></tr></tbody></table>
+<blockquote><strong>P</strong> = Producer, <strong>C</strong> = Consumer</blockquote>
+
+  </main>
+  <footer class="doc-footer">
+    <span>Synapse · Mocking Docs v1.0 · 2026-05-14</span>
+    <a href="https://github.com/team-project-final/documents/blob/main/docs/mocking/06-kafka-event-mocking.md" target="_blank" rel="noopener">edit on GitHub →</a>
+  </footer>
+</div>
+</body>
+</html>

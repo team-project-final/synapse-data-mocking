@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>02 · Engagement Service — Synapse Mocking Docs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="doc-style.css" />
+</head>
+<body>
+<div class="doc-shell">
+  <header class="doc-header">
+    <div class="doc-header-meta">
+      <span class="doc-idx">DOC 02</span>
+      <span class="doc-en">engagement-svc</span>
+    </div>
+    <h1 class="doc-h1">Engagement Service</h1>
+    <div class="doc-links">
+      <a class="doc-link" href="https://github.com/team-project-final/documents/blob/main/docs/mocking/02-engagement-svc-mocking.md" target="_blank" rel="noopener">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        GitHub 원본 보기
+      </a>
+      <a class="doc-link" href="https://github.com/team-project-final/documents/raw/main/docs/mocking/02-engagement-svc-mocking.md" target="_blank" rel="noopener">📥 raw .md 다운로드</a>
+    </div>
+  </header>
+  <main class="doc-body">
+<h1 id="engagement-service-목킹-정의서">Engagement Service 목킹 정의서</h1>
+<blockquote><strong>프로젝트</strong>: Synapse — 통합 학습-지식 그래프 SaaS <strong>서비스</strong>: synapse-engagement-svc <strong>Owner</strong>: <code>@engagement-owner</code> (한승완) <strong>모듈</strong>: community, gamification <strong>작성일</strong>: 2026-05-14</blockquote>
+<hr/>
+<h2 id="1-서비스-의존성-맵">1. 서비스 의존성 맵</h2>
+<div class="mermaid-block"><div class="mermaid-label">mermaid diagram</div><pre class="code-block"><code>graph LR
+    subgraph engagement-svc
+        COMM[community 모듈]
+        GAMI[gamification 모듈]
+    end
+
+    subgraph External
+        LEARNING["learning-svc&lt;br/&gt;/internal/decks/copy"]
+    end
+
+    subgraph Infrastructure
+        PG[(PostgreSQL)]
+        REDIS[(Redis)]
+        KAFKA[Kafka]
+    end
+
+    COMM --&gt;|POST /internal/decks/copy| LEARNING
+    COMM --&gt;|Producer: 5 topics| KAFKA
+    COMM --&gt; PG
+
+    GAMI --&gt;|Consumer: 7 topics| KAFKA
+    GAMI --&gt;|Producer: 4 topics| KAFKA
+    GAMI --&gt; PG
+    GAMI --&gt; REDIS</code></pre></div>
+<hr/>
+<h2 id="2-community-모듈">2. community 모듈</h2>
+<h3 id="21-목킹-인터페이스-목록">2.1 목킹 인터페이스 목록</h3>
+<table class="md-table"><thead><tr><th>#</th><th>목킹 대상</th><th>통신 방식</th><th>방향</th><th>도구</th></tr></thead><tbody><tr><td>1</td><td><code>/internal/decks/copy</code> (learning-svc)</td><td>REST</td><td>Outbound</td><td>WireMock</td></tr><tr><td>2</td><td>Kafka Producer (5개 토픽)</td><td>Kafka</td><td>Outbound</td><td>EmbeddedKafka</td></tr><tr><td>3</td><td>PostgreSQL (study_groups, group_members, shared_decks, shared_notes, reports)</td><td>SQL</td><td>Outbound</td><td>Testcontainers</td></tr></tbody></table>
+<h3 id="22-internal-api-internaldeckscopy-wiremock">2.2 Internal API — <code>/internal/decks/copy</code> WireMock</h3>
+<h4 id="success-201">Success (201)</h4>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"request"</span>: {
+    <span class="key">"method"</span>: <span class="str">"POST"</span>,
+    <span class="key">"urlPath"</span>: <span class="str">"/internal/decks/copy"</span>,
+    <span class="key">"headers"</span>: {
+      <span class="key">"Content-Type"</span>: { <span class="key">"equalTo"</span>: <span class="str">"application/json"</span> }
+    },
+    <span class="key">"bodyPatterns"</span>: [
+      { <span class="key">"matchesJsonPath"</span>: <span class="str">"$.sourceDeckId"</span> },
+      { <span class="key">"matchesJsonPath"</span>: <span class="str">"$.targetUserId"</span> },
+      { <span class="key">"matchesJsonPath"</span>: <span class="str">"$.targetTenantId"</span> }
+    ]
+  },
+  <span class="key">"response"</span>: {
+    <span class="key">"status"</span>: <span class="num">201</span>,
+    <span class="key">"headers"</span>: {
+      <span class="key">"Content-Type"</span>: <span class="str">"application/json"</span>
+    },
+    <span class="key">"jsonBody"</span>: {
+      <span class="key">"copiedDeckId"</span>: <span class="str">"deck-00000000-0000-0000-0000-000000000099"</span>,
+      <span class="key">"cardCount"</span>: <span class="num">42</span>
+    }
+  }
+}</code></pre>
+<h4 id="요청-fixture">요청 fixture</h4>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"sourceDeckId"</span>: <span class="str">"deck-00000000-0000-0000-0000-000000000002"</span>,
+  <span class="key">"targetUserId"</span>: <span class="str">"user-00000000-0000-0000-0000-000000000002"</span>,
+  <span class="key">"targetTenantId"</span>: <span class="str">"tenant-00000000-0000-0000-0000-000000000001"</span>,
+  <span class="key">"newDeckName"</span>: <span class="str">"복사된 프로그래밍 기초 덱"</span>
+}</code></pre>
+<h4 id="error-source-deck-not-found-404">Error — Source Deck Not Found (404)</h4>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"request"</span>: {
+    <span class="key">"method"</span>: <span class="str">"POST"</span>,
+    <span class="key">"urlPath"</span>: <span class="str">"/internal/decks/copy"</span>,
+    <span class="key">"bodyPatterns"</span>: [
+      { <span class="key">"matchesJsonPath"</span>: <span class="str">"$.sourceDeckId"</span>,
+        <span class="key">"equalTo"</span>: <span class="str">"deck-00000000-0000-0000-0000-nonexistent00"</span> }
+    ]
+  },
+  <span class="key">"response"</span>: {
+    <span class="key">"status"</span>: <span class="num">404</span>,
+    <span class="key">"jsonBody"</span>: {
+      <span class="key">"success"</span>: <span class="kw">false</span>,
+      <span class="key">"error"</span>: {
+        <span class="key">"code"</span>: <span class="str">"DECK_NOT_FOUND"</span>,
+        <span class="key">"message"</span>: <span class="str">"Source deck not found"</span>
+      }
+    }
+  }
+}</code></pre>
+<p><strong>application-test.yml:</strong></p>
+<pre class="code-block" data-lang="yaml"><code><span class="key">internal</span>:
+  <span class="key">learning-svc</span>:
+    <span class="key">base-url</span>: http://localhost:${wiremock.server.port}</code></pre>
+<h3 id="23-spring-cloud-contract-consumer-side">2.3 Spring Cloud Contract (Consumer Side)</h3>
+<p>engagement-svc는 <code>/internal/decks/copy</code>의 <strong>Consumer</strong> 이므로, learning-svc가 제공하는 contract stub을 사용하여 계약 테스트를 실행한다.</p>
+<pre class="code-block" data-lang="yaml"><code><span class="cmt"># application-contract-test.yml</span>
+<span class="key">stubrunner</span>:
+  <span class="key">ids</span>:
+    - com.synapse:learning-card:+:stubs:<span class="num">8091</span>
+  <span class="key">stubs-mode</span>: LOCAL</code></pre>
+<pre class="code-block" data-lang="java"><code><span class="anno">@AutoConfigureStubRunner</span>(
+    ids = <span class="str">"com.synapse:learning-card:+:stubs:8091"</span>,
+    stubsMode = StubRunnerProperties.StubsMode.LOCAL
+)
+<span class="anno">@SpringBootTest</span>
+<span class="kw">class</span> CommunityDeckCopyContractTest {
+
+    <span class="anno">@Autowired</span>
+    <span class="kw">private</span> DeckCopyClient deckCopyClient;
+
+    <span class="anno">@Test</span>
+    <span class="kw">void</span> copyDeck_shouldFollowContract() {
+        DeckCopyRequest request = <span class="kw">new</span> DeckCopyRequest(
+            <span class="type">UUID</span>.fromString(<span class="str">"deck-00000000-0000-0000-0000-000000000002"</span>),
+            <span class="type">UUID</span>.fromString(<span class="str">"user-00000000-0000-0000-0000-000000000002"</span>),
+            <span class="type">UUID</span>.fromString(<span class="str">"tenant-00000000-0000-0000-0000-000000000001"</span>),
+            <span class="kw">null</span>
+        );
+
+        DeckCopyResponse response = deckCopyClient.copyDeck(request);
+
+        assertThat(response.copiedDeckId()).isNotNull();
+        assertThat(response.cardCount()).isPositive();
+    }
+}</code></pre>
+<h3 id="24-kafka-producer-검증-5개-토픽">2.4 Kafka Producer 검증 (5개 토픽)</h3>
+<pre class="code-block" data-lang="java"><code><span class="anno">@Test</span>
+<span class="kw">void</span> shareDeck_shouldPublishDeckSharedEvent() {
+    <span class="cmt">// given</span>
+    <span class="type">String</span> requestBody = <span class="str">""</span>"
+        {
+            <span class="str">"deckId"</span>: <span class="str">"deck-00000000-0000-0000-0000-000000000001"</span>,
+            <span class="str">"shareType"</span>: <span class="str">"group"</span>,
+            <span class="str">"targetGroupId"</span>: <span class="str">"group-00000000-0000-0000-0000-000000000001"</span>
+        }
+        <span class="str">""</span>";
+
+    <span class="cmt">// when</span>
+    mockMvc.perform(post(<span class="str">"/community/groups/group-00000000-0000-0000-0000-000000000001/share/deck"</span>)
+            .header(<span class="str">"Authorization"</span>, <span class="str">"Bearer "</span> + JwtTestFactory.USER1_TOKEN)
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(requestBody))
+        .andExpect(status().isCreated());
+
+    <span class="cmt">// then</span>
+    <span class="type">List</span>&lt;<span class="type">ConsumerRecord</span>&lt;<span class="type">String</span>, Object&gt;&gt; records =
+        kafkaTestHelper.consumeMessages(<span class="str">"community.deck.shared"</span>, <span class="num">1</span>, <span class="type">Duration</span>.ofSeconds(<span class="num">5</span>));
+    assertThat(records).hasSize(<span class="num">1</span>);
+}
+
+<span class="anno">@Test</span>
+<span class="kw">void</span> createGroup_shouldPublishGroupCreatedEvent() {
+    <span class="type">String</span> requestBody = <span class="str">""</span>"
+        {
+            <span class="str">"name"</span>: <span class="str">"ML 스터디"</span>,
+            <span class="str">"description"</span>: <span class="str">"머신러닝을 함께 공부하는 그룹"</span>,
+            <span class="str">"maxMembers"</span>: <span class="num">20</span>,
+            <span class="str">"joinType"</span>: <span class="str">"approval"</span>
+        }
+        <span class="str">""</span>";
+
+    mockMvc.perform(post(<span class="str">"/community/groups"</span>)
+            .header(<span class="str">"Authorization"</span>, <span class="str">"Bearer "</span> + JwtTestFactory.USER1_TOKEN)
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(requestBody))
+        .andExpect(status().isCreated());
+
+    <span class="type">List</span>&lt;<span class="type">ConsumerRecord</span>&lt;<span class="type">String</span>, Object&gt;&gt; records =
+        kafkaTestHelper.consumeMessages(<span class="str">"community.group.created"</span>, <span class="num">1</span>, <span class="type">Duration</span>.ofSeconds(<span class="num">5</span>));
+    assertThat(records).hasSize(<span class="num">1</span>);
+}</code></pre>
+<h3 id="25-postgresql-시드-데이터">2.5 PostgreSQL 시드 데이터</h3>
+<pre class="code-block" data-lang="sql"><code><span class="cmt">-- engagement_community_seed.sql</span>
+
+<span class="cmt">-- Study Groups</span>
+<span class="kw">INSERT</span> <span class="kw">INTO</span> study_groups (id, tenant_id, name, description, max_members, join_type, status, owner_user_id, member_count, created_at) <span class="kw">VALUES</span>
+(<span class="str">'group-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'tenant-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'ML 스터디'</span>, <span class="str">'머신러닝을 함께 공부하는 그룹'</span>, <span class="num">20</span>, <span class="str">'approval'</span>, <span class="str">'active'</span>, <span class="str">'user-00000000-0000-0000-0000-000000000001'</span>, <span class="num">3</span>, <span class="str">'2026-01-15T09:00:00Z'</span>),
+(<span class="str">'group-00000000-0000-0000-0000-000000000002'</span>, <span class="str">'tenant-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'비공개 스터디'</span>, <span class="str">'초대 전용 그룹'</span>, <span class="num">10</span>, <span class="str">'invite_only'</span>, <span class="str">'active'</span>, <span class="str">'user-00000000-0000-0000-0000-000000000002'</span>, <span class="num">1</span>, <span class="str">'2026-01-15T09:00:00Z'</span>);
+
+<span class="cmt">-- Group Members</span>
+<span class="kw">INSERT</span> <span class="kw">INTO</span> group_members (id, group_id, user_id, role, status, joined_at) <span class="kw">VALUES</span>
+(<span class="str">'gm-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'group-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'user-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'owner'</span>, <span class="str">'active'</span>, <span class="str">'2026-01-15T09:00:00Z'</span>),
+(<span class="str">'gm-00000000-0000-0000-0000-000000000002'</span>, <span class="str">'group-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'user-00000000-0000-0000-0000-000000000002'</span>, <span class="str">'member'</span>, <span class="str">'active'</span>, <span class="str">'2026-01-15T09:30:00Z'</span>),
+(<span class="str">'gm-00000000-0000-0000-0000-000000000003'</span>, <span class="str">'group-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'user-00000000-0000-0000-0000-000000000004'</span>, <span class="str">'admin'</span>, <span class="str">'active'</span>, <span class="str">'2026-01-15T09:35:00Z'</span>);
+
+<span class="cmt">-- Shared Decks</span>
+<span class="kw">INSERT</span> <span class="kw">INTO</span> shared_decks (id, tenant_id, deck_id, shared_by_user_id, share_type, target_group_id, deck_title, share_token, copy_count, status, created_at) <span class="kw">VALUES</span>
+(<span class="str">'sdeck-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'tenant-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'deck-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'user-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'group'</span>, <span class="str">'group-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'프로그래밍 기초 덱'</span>, <span class="str">'share_tok_001'</span>, <span class="num">5</span>, <span class="str">'active'</span>, <span class="str">'2026-01-15T11:00:00Z'</span>);
+
+<span class="cmt">-- Shared Notes</span>
+<span class="kw">INSERT</span> <span class="kw">INTO</span> shared_notes (id, tenant_id, note_id, shared_by_user_id, share_type, target_group_id, note_title, share_token, status, created_at) <span class="kw">VALUES</span>
+(<span class="str">'snote-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'tenant-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'note-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'user-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'group'</span>, <span class="str">'group-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'머신러닝 기초 정리'</span>, <span class="str">'share_tok_002'</span>, <span class="str">'active'</span>, <span class="str">'2026-01-15T11:10:00Z'</span>);
+
+<span class="cmt">-- Reports</span>
+<span class="kw">INSERT</span> <span class="kw">INTO</span> reports (id, tenant_id, reporter_user_id, target_type, target_id, reason, description, status, created_at) <span class="kw">VALUES</span>
+(<span class="str">'report-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'tenant-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'user-00000000-0000-0000-0000-000000000002'</span>, <span class="str">'shared_deck'</span>, <span class="str">'sdeck-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'inappropriate'</span>, <span class="str">'부적절한 내용 포함'</span>, <span class="str">'pending'</span>, <span class="str">'2026-01-15T14:00:00Z'</span>);</code></pre>
+<hr/>
+<h2 id="3-gamification-모듈">3. gamification 모듈</h2>
+<h3 id="31-목킹-인터페이스-목록">3.1 목킹 인터페이스 목록</h3>
+<table class="md-table"><thead><tr><th>#</th><th>목킹 대상</th><th>통신 방식</th><th>방향</th><th>도구</th></tr></thead><tbody><tr><td>1</td><td>Kafka Consumer (7개 토픽)</td><td>Kafka</td><td>Inbound</td><td>EmbeddedKafka</td></tr><tr><td>2</td><td>Kafka Producer (4개 토픽)</td><td>Kafka</td><td>Outbound</td><td>EmbeddedKafka</td></tr><tr><td>3</td><td>Redis (리더보드 Sorted Set)</td><td>Redis Protocol</td><td>Outbound</td><td>Testcontainers</td></tr><tr><td>4</td><td>PostgreSQL (xp_events, level_definitions, badge_definitions, user_badges, leaderboards)</td><td>SQL</td><td>Outbound</td><td>Testcontainers</td></tr></tbody></table>
+<h3 id="32-consumer-소비-토픽-목록">3.2 Consumer 소비 토픽 목록</h3>
+<table class="md-table"><thead><tr><th>#</th><th>토픽</th><th>XP 처리</th><th>fixture 참조</th></tr></thead><tbody><tr><td>1</td><td><code>card.reviewed</code></td><td>review_complete: +10 XP</td><td><code>06-kafka-event-mocking.md</code> §2.4</td></tr><tr><td>2</td><td><code>note.created</code></td><td>note_create: +20 XP</td><td><code>06-kafka-event-mocking.md</code> §2.1</td></tr><tr><td>3</td><td><code>community.deck.shared</code></td><td>deck_share: +30 XP</td><td><code>06-kafka-event-mocking.md</code> §2.8</td></tr><tr><td>4</td><td><code>community.note.shared</code></td><td>note_share: +30 XP</td><td><code>06-kafka-event-mocking.md</code> §2.9</td></tr><tr><td>5</td><td><code>community.group.created</code></td><td>group_activity: +15 XP</td><td><code>06-kafka-event-mocking.md</code> §2.10</td></tr><tr><td>6</td><td><code>community.group.joined</code></td><td>group_activity: +15 XP</td><td><code>06-kafka-event-mocking.md</code> §2.11</td></tr><tr><td>7</td><td><code>community.report.created</code></td><td>(처리 없음, 로깅만)</td><td><code>06-kafka-event-mocking.md</code> §2.12</td></tr></tbody></table>
+<h3 id="33-producer-발행-토픽-목록">3.3 Producer 발행 토픽 목록</h3>
+<table class="md-table"><thead><tr><th>#</th><th>토픽</th><th>발행 조건</th></tr></thead><tbody><tr><td>1</td><td><code>gamification.xp.earned</code></td><td>XP 적립 시</td></tr><tr><td>2</td><td><code>gamification.badge.earned</code></td><td>배지 조건 충족 시</td></tr><tr><td>3</td><td><code>gamification.level.up</code></td><td>레벨 상승 시</td></tr><tr><td>4</td><td><code>notification.send</code></td><td>알림 발송 요청</td></tr></tbody></table>
+<h3 id="34-xp-적립-레벨업-배지-수여-통합-테스트">3.4 XP 적립 → 레벨업 → 배지 수여 통합 테스트</h3>
+<pre class="code-block" data-lang="java"><code><span class="anno">@Test</span>
+<span class="kw">void</span> cardReviewed_shouldAwardXpAndCheckLevelUp() {
+    <span class="cmt">// given — user1은 현재 레벨 3 (XP: 490, 레벨4 필요 XP: 500)</span>
+    <span class="type">String</span> fixture = kafkaTestHelper.loadFixture(
+        <span class="str">"fixtures/kafka/card_reviewed_success.avro.json"</span>);
+
+    <span class="cmt">// when — card.reviewed 이벤트 발행 (10 XP)</span>
+    kafkaTestHelper.publishAndWait(<span class="str">"card.reviewed"</span>, <span class="str">"key-1"</span>, fixture, <span class="type">Duration</span>.ofSeconds(<span class="num">5</span>));
+
+    <span class="cmt">// then — XP 500 도달 → 레벨 4로 승격</span>
+    <span class="cmt">// 1. xp_events에 INSERT</span>
+    Long xpCount = jdbcTemplate.queryForObject(
+        <span class="str">"SELECT COUNT(*) FROM xp_events WHERE user_id = ? AND event_type = 'review_complete'"</span>,
+        Long.<span class="kw">class</span>,
+        <span class="str">"user-00000000-0000-0000-0000-000000000001"</span>
+    );
+    assertThat(xpCount).isGreaterThanOrEqualTo(<span class="num">1</span>);
+
+    <span class="cmt">// 2. gamification.xp.earned 발행 확인</span>
+    <span class="type">List</span>&lt;<span class="type">ConsumerRecord</span>&lt;<span class="type">String</span>, Object&gt;&gt; xpRecords =
+        kafkaTestHelper.consumeMessages(<span class="str">"gamification.xp.earned"</span>, <span class="num">1</span>, <span class="type">Duration</span>.ofSeconds(<span class="num">5</span>));
+    assertThat(xpRecords).hasSize(<span class="num">1</span>);
+
+    <span class="cmt">// 3. gamification.level.up 발행 확인</span>
+    <span class="type">List</span>&lt;<span class="type">ConsumerRecord</span>&lt;<span class="type">String</span>, Object&gt;&gt; levelRecords =
+        kafkaTestHelper.consumeMessages(<span class="str">"gamification.level.up"</span>, <span class="num">1</span>, <span class="type">Duration</span>.ofSeconds(<span class="num">5</span>));
+    assertThat(levelRecords).hasSize(<span class="num">1</span>);
+}</code></pre>
+<h3 id="35-redis-리더보드-테스트">3.5 Redis 리더보드 테스트</h3>
+<pre class="code-block" data-lang="java"><code><span class="anno">@Test</span>
+<span class="kw">void</span> leaderboard_shouldUseRedisSortedSet() {
+    <span class="cmt">// given — Redis에 리더보드 시드 데이터 적재</span>
+    <span class="type">String</span> weeklyKey = <span class="str">"leaderboard:weekly:2026-W03"</span>;
+    redisTemplate.opsForZSet().add(weeklyKey, <span class="str">"user-00000000-0000-0000-0000-000000000001"</span>, <span class="num">500</span>);
+    redisTemplate.opsForZSet().add(weeklyKey, <span class="str">"user-00000000-0000-0000-0000-000000000002"</span>, <span class="num">350</span>);
+    redisTemplate.opsForZSet().add(weeklyKey, <span class="str">"user-00000000-0000-0000-0000-000000000004"</span>, <span class="num">200</span>);
+
+    <span class="cmt">// when — 리더보드 조회</span>
+    mockMvc.perform(<span class="kw">get</span>(<span class="str">"/gamification/leaderboard?period=weekly"</span>)
+            .header(<span class="str">"Authorization"</span>, <span class="str">"Bearer "</span> + JwtTestFactory.USER1_TOKEN))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath(<span class="str">"$.data[0].userId"</span>).value(<span class="str">"user-00000000-0000-0000-0000-000000000001"</span>))
+        .andExpect(jsonPath(<span class="str">"$.data[0].totalXp"</span>).value(<span class="num">500</span>))
+        .andExpect(jsonPath(<span class="str">"$.data[1].totalXp"</span>).value(<span class="num">350</span>));
+}</code></pre>
+<h3 id="36-스트릭-리셋-cron-job-테스트">3.6 스트릭 리셋 Cron Job 테스트</h3>
+<pre class="code-block" data-lang="java"><code><span class="anno">@Test</span>
+<span class="kw">void</span> streakResetJob_shouldResetInactiveUsers() {
+    <span class="cmt">// given — user1: 어제 마지막 복습, user2: 오늘 복습</span>
+    jdbcTemplate.update(
+        <span class="str">"INSERT INTO user_streaks (user_id, current_streak, last_activity_date) VALUES (?, ?, ?)"</span>,
+        <span class="str">"user-00000000-0000-0000-0000-000000000001"</span>, <span class="num">7</span>, LocalDate.parse(<span class="str">"2026-01-14"</span>)
+    );
+    jdbcTemplate.update(
+        <span class="str">"INSERT INTO user_streaks (user_id, current_streak, last_activity_date) VALUES (?, ?, ?)"</span>,
+        <span class="str">"user-00000000-0000-0000-0000-000000000002"</span>, <span class="num">3</span>, LocalDate.parse(<span class="str">"2026-01-15"</span>)
+    );
+
+    <span class="cmt">// when — 스트릭 리셋 Job 실행 (기준일: 2026-01-15)</span>
+    streakResetJob.execute();
+
+    <span class="cmt">// then — user1 스트릭 0으로 리셋, user2 유지</span>
+    Integer user1Streak = jdbcTemplate.queryForObject(
+        <span class="str">"SELECT current_streak FROM user_streaks WHERE user_id = ?"</span>,
+        Integer.<span class="kw">class</span>, <span class="str">"user-00000000-0000-0000-0000-000000000001"</span>
+    );
+    assertThat(user1Streak).isEqualTo(<span class="num">0</span>);
+
+    Integer user2Streak = jdbcTemplate.queryForObject(
+        <span class="str">"SELECT current_streak FROM user_streaks WHERE user_id = ?"</span>,
+        Integer.<span class="kw">class</span>, <span class="str">"user-00000000-0000-0000-0000-000000000002"</span>
+    );
+    assertThat(user2Streak).isEqualTo(<span class="num">3</span>);
+}</code></pre>
+<h3 id="37-postgresql-시드-데이터">3.7 PostgreSQL 시드 데이터</h3>
+<pre class="code-block" data-lang="sql"><code><span class="cmt">-- engagement_gamification_seed.sql</span>
+
+<span class="cmt">-- Level Definitions</span>
+<span class="kw">INSERT</span> <span class="kw">INTO</span> level_definitions (level_number, required_xp, title, rewards_json) <span class="kw">VALUES</span>
+(<span class="num">1</span>, <span class="num">0</span>, <span class="str">'새싹'</span>, <span class="kw">NULL</span>),
+(<span class="num">2</span>, <span class="num">100</span>, <span class="str">'탐험가'</span>, <span class="kw">NULL</span>),
+(<span class="num">3</span>, <span class="num">300</span>, <span class="str">'학습자'</span>, <span class="kw">NULL</span>),
+(<span class="num">4</span>, <span class="num">500</span>, <span class="str">'학자'</span>, <span class="kw">NULL</span>),
+(<span class="num">5</span>, <span class="num">1000</span>, <span class="str">'전문가'</span>, <span class="kw">NULL</span>),
+(<span class="num">6</span>, <span class="num">2000</span>, <span class="str">'마스터'</span>, <span class="kw">NULL</span>);
+
+<span class="cmt">-- Badge Definitions</span>
+<span class="kw">INSERT</span> <span class="kw">INTO</span> badge_definitions (id, code, name, description, icon_url, category, criteria_json, xp_reward) <span class="kw">VALUES</span>
+(<span class="str">'badge-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'STREAK_7'</span>, <span class="str">'7일 전사'</span>, <span class="str">'7일 연속 복습 달성'</span>, <span class="str">'https://cdn.synapse.app/badges/streak7.png'</span>, <span class="str">'streak'</span>, <span class="str">'{"type":"streak","field":"current_streak","value":7,"period":"all"}'</span>, <span class="num">100</span>),
+(<span class="str">'badge-00000000-0000-0000-0000-000000000002'</span>, <span class="str">'STREAK_30'</span>, <span class="str">'30일 전사'</span>, <span class="str">'30일 연속 복습 달성'</span>, <span class="str">'https://cdn.synapse.app/badges/streak30.png'</span>, <span class="str">'streak'</span>, <span class="str">'{"type":"streak","field":"current_streak","value":30,"period":"all"}'</span>, <span class="num">500</span>),
+(<span class="str">'badge-00000000-0000-0000-0000-000000000003'</span>, <span class="str">'FIRST_REVIEW'</span>, <span class="str">'첫 복습'</span>, <span class="str">'첫 번째 카드 복습 완료'</span>, <span class="str">'https://cdn.synapse.app/badges/first-review.png'</span>, <span class="str">'milestone'</span>, <span class="str">'{"type":"count","field":"total_reviews","value":1,"period":"all"}'</span>, <span class="num">100</span>),
+(<span class="str">'badge-00000000-0000-0000-0000-000000000004'</span>, <span class="str">'NOTE_100'</span>, <span class="str">'노트 100개'</span>, <span class="str">'노트 100개 작성'</span>, <span class="str">'https://cdn.synapse.app/badges/note100.png'</span>, <span class="str">'milestone'</span>, <span class="str">'{"type":"count","field":"total_notes","value":100,"period":"all"}'</span>, <span class="num">200</span>);
+
+<span class="cmt">-- XP Events (기존 데이터)</span>
+<span class="kw">INSERT</span> <span class="kw">INTO</span> xp_events (id, tenant_id, user_id, event_type, xp_amount, source_id, source_type, created_at) <span class="kw">VALUES</span>
+(<span class="str">'xp-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'tenant-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'user-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'review_complete'</span>, <span class="num">10</span>, <span class="str">'card-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'card'</span>, <span class="str">'2026-01-14T10:00:00Z'</span>),
+(<span class="str">'xp-00000000-0000-0000-0000-000000000002'</span>, <span class="str">'tenant-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'user-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'note_create'</span>, <span class="num">20</span>, <span class="str">'note-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'note'</span>, <span class="str">'2026-01-14T11:00:00Z'</span>);
+
+<span class="cmt">-- User XP Summary</span>
+<span class="kw">INSERT</span> <span class="kw">INTO</span> user_xp_summary (user_id, tenant_id, total_xp, current_level, current_streak, last_activity_date) <span class="kw">VALUES</span>
+(<span class="str">'user-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'tenant-00000000-0000-0000-0000-000000000001'</span>, <span class="num">490</span>, <span class="num">3</span>, <span class="num">7</span>, <span class="str">'2026-01-14'</span>),
+(<span class="str">'user-00000000-0000-0000-0000-000000000002'</span>, <span class="str">'tenant-00000000-0000-0000-0000-000000000001'</span>, <span class="num">150</span>, <span class="num">2</span>, <span class="num">3</span>, <span class="str">'2026-01-15'</span>);
+
+<span class="cmt">-- User Badges</span>
+<span class="kw">INSERT</span> <span class="kw">INTO</span> user_badges (id, user_id, badge_id, earned_at) <span class="kw">VALUES</span>
+(<span class="str">'ub-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'user-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'badge-00000000-0000-0000-0000-000000000003'</span>, <span class="str">'2026-01-10T10:00:00Z'</span>);
+
+<span class="cmt">-- XP Config</span>
+<span class="kw">INSERT</span> <span class="kw">INTO</span> xp_config (event_type, xp_amount) <span class="kw">VALUES</span>
+(<span class="str">'review_complete'</span>, <span class="num">10</span>),
+(<span class="str">'note_create'</span>, <span class="num">20</span>),
+(<span class="str">'card_create'</span>, <span class="num">5</span>),
+(<span class="str">'streak_bonus'</span>, <span class="num">50</span>),
+(<span class="str">'group_activity'</span>, <span class="num">15</span>),
+(<span class="str">'deck_share'</span>, <span class="num">30</span>),
+(<span class="str">'first_review'</span>, <span class="num">100</span>),
+(<span class="str">'perfect_session'</span>, <span class="num">50</span>);</code></pre>
+<hr/>
+<h2 id="4-applicationtestyml-전체">4. application-test.yml (전체)</h2>
+<pre class="code-block" data-lang="yaml"><code><span class="key">spring</span>:
+  <span class="key">profiles</span>:
+    <span class="key">active</span>: test
+  <span class="key">datasource</span>:
+    <span class="key">url</span>: ${SPRING_DATASOURCE_URL}
+    <span class="key">username</span>: ${SPRING_DATASOURCE_USERNAME}
+    <span class="key">password</span>: ${SPRING_DATASOURCE_PASSWORD}
+  <span class="key">jpa</span>:
+    <span class="key">hibernate</span>:
+      <span class="key">ddl-auto</span>: create-drop
+    <span class="key">show-sql</span>: <span class="kw">true</span>
+  <span class="key">data</span>:
+    <span class="key">redis</span>:
+      <span class="key">host</span>: ${SPRING_DATA_REDIS_HOST}
+      <span class="key">port</span>: ${SPRING_DATA_REDIS_PORT}
+  <span class="key">kafka</span>:
+    <span class="key">bootstrap-servers</span>: ${spring.embedded.kafka.brokers}
+    <span class="key">consumer</span>:
+      <span class="key">auto-offset-reset</span>: earliest
+      <span class="key">group-id</span>: engagement-test-group
+    <span class="key">properties</span>:
+      <span class="key">schema.registry.url</span>: mock://test-schema-registry
+
+<span class="key">internal</span>:
+  <span class="key">learning-svc</span>:
+    <span class="key">base-url</span>: http://localhost:${wiremock.server.port}
+
+<span class="key">jwt</span>:
+  <span class="key">secret</span>: test-jwt-secret-key-must-be-at-least-<span class="num">256</span>-bits-long-for-hs256
+
+<span class="key">gamification</span>:
+  <span class="key">streak</span>:
+    <span class="key">reset-cron</span>: <span class="str">"0 0 0 * * *"</span>
+  <span class="key">leaderboard</span>:
+    <span class="key">weekly-cron</span>: <span class="str">"0 0 1 * * MON"</span>
+    <span class="key">monthly-cron</span>: <span class="str">"0 0 1 1 * *"</span></code></pre>
+
+  </main>
+  <footer class="doc-footer">
+    <span>Synapse · Mocking Docs v1.0 · 2026-05-14</span>
+    <a href="https://github.com/team-project-final/documents/blob/main/docs/mocking/02-engagement-svc-mocking.md" target="_blank" rel="noopener">edit on GitHub →</a>
+  </footer>
+</div>
+</body>
+</html>

@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>04 · Learning Service — Synapse Mocking Docs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="doc-style.css" />
+</head>
+<body>
+<div class="doc-shell">
+  <header class="doc-header">
+    <div class="doc-header-meta">
+      <span class="doc-idx">DOC 04</span>
+      <span class="doc-en">learning-svc</span>
+    </div>
+    <h1 class="doc-h1">Learning Service</h1>
+    <div class="doc-links">
+      <a class="doc-link" href="https://github.com/team-project-final/documents/blob/main/docs/mocking/04-learning-svc-mocking.md" target="_blank" rel="noopener">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        GitHub 원본 보기
+      </a>
+      <a class="doc-link" href="https://github.com/team-project-final/documents/raw/main/docs/mocking/04-learning-svc-mocking.md" target="_blank" rel="noopener">📥 raw .md 다운로드</a>
+    </div>
+  </header>
+  <main class="doc-body">
+<h1 id="learning-service-목킹-정의서">Learning Service 목킹 정의서</h1>
+<blockquote><strong>프로젝트</strong>: Synapse — 통합 학습-지식 그래프 SaaS <strong>서비스</strong>: synapse-learning-svc <strong>Owner</strong>: <code>@learning-card-owner</code> (조유지 — Java), <code>@learning-ai-owner</code> (김나경 — Python) <strong>컨테이너</strong>: learning-card (Spring Boot), learning-ai (FastAPI) <strong>작성일</strong>: 2026-05-14</blockquote>
+<hr/>
+<h2 id="part-a-learningcard-java-spring-boot">Part A — learning-card (Java / Spring Boot)</h2>
+<h3 id="1-서비스-의존성-맵">1. 서비스 의존성 맵</h3>
+<div class="mermaid-block"><div class="mermaid-label">mermaid diagram</div><pre class="code-block"><code>graph LR
+    subgraph learning-card
+        CARD[card 모듈]
+        SRS[srs 모듈]
+    end
+
+    subgraph Infrastructure
+        PG[(PostgreSQL)]
+        REDIS[(Redis)]
+        KAFKA[Kafka]
+    end
+
+    CARD --&gt; PG
+    SRS --&gt; PG
+    SRS --&gt; REDIS
+    SRS --&gt;|Producer: card.reviewed, card.review.due| KAFKA
+    CARD --&gt;|Provider: /internal/decks/copy| CARD</code></pre></div>
+<h3 id="2-card-모듈">2. card 모듈</h3>
+<h4 id="21-목킹-인터페이스-목록">2.1 목킹 인터페이스 목록</h4>
+<table class="md-table"><thead><tr><th>#</th><th>목킹 대상</th><th>통신 방식</th><th>방향</th><th>도구</th></tr></thead><tbody><tr><td>1</td><td>PostgreSQL (decks, cards)</td><td>SQL</td><td>Outbound</td><td>Testcontainers</td></tr></tbody></table>
+<h4 id="22-postgresql-시드-데이터">2.2 PostgreSQL 시드 데이터</h4>
+<pre class="code-block" data-lang="sql"><code><span class="cmt">-- learning_card_seed.sql</span>
+
+<span class="cmt">-- Decks</span>
+<span class="kw">INSERT</span> <span class="kw">INTO</span> decks (id, tenant_id, user_id, name, description, card_count, created_at) <span class="kw">VALUES</span>
+(<span class="str">'deck-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'tenant-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'user-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'프로그래밍 기초 덱'</span>, <span class="str">'Java, Python 등 기초 개념'</span>, <span class="num">3</span>, <span class="str">'2026-01-15T10:00:00Z'</span>),
+(<span class="str">'deck-00000000-0000-0000-0000-000000000002'</span>, <span class="str">'tenant-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'user-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'알고리즘 마스터 덱'</span>, <span class="str">'정렬, 탐색, DP'</span>, <span class="num">0</span>, <span class="str">'2026-01-15T10:00:00Z'</span>);
+
+<span class="cmt">-- Cards</span>
+<span class="kw">INSERT</span> <span class="kw">INTO</span> cards (id, tenant_id, deck_id, user_id, card_type, front_content, back_content, source_note_id, created_at) <span class="kw">VALUES</span>
+(<span class="str">'card-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'tenant-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'deck-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'user-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'basic'</span>, <span class="str">'TCP와 UDP의 차이점은?'</span>, <span class="str">'TCP는 연결 지향적, 신뢰성 보장. UDP는 비연결, 빠른 전송.'</span>, <span class="str">'note-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'2026-01-15T10:00:00Z'</span>),
+(<span class="str">'card-00000000-0000-0000-0000-000000000002'</span>, <span class="str">'tenant-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'deck-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'user-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'cloze'</span>, <span class="str">'{{c1::정규화}}는 과적합을 방지하는 기법이다.'</span>, <span class="str">''</span>, <span class="str">'note-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'2026-01-15T10:01:00Z'</span>),
+(<span class="str">'card-00000000-0000-0000-0000-000000000003'</span>, <span class="str">'tenant-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'deck-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'user-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'basic'</span>, <span class="str">'AI가 생성한 질문?'</span>, <span class="str">'AI가 생성한 답변'</span>, <span class="kw">NULL</span>, <span class="str">'2026-01-15T10:02:00Z'</span>);
+
+<span class="cmt">-- Card Schedules (SRS)</span>
+<span class="kw">INSERT</span> <span class="kw">INTO</span> card_schedules (card_id, user_id, easiness_factor, interval_days, repetitions, due_date, last_reviewed_at) <span class="kw">VALUES</span>
+(<span class="str">'card-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'user-00000000-0000-0000-0000-000000000001'</span>, <span class="num">2.5</span>, <span class="num">7</span>, <span class="num">3</span>, <span class="str">'2026-01-15'</span>, <span class="str">'2026-01-08T10:00:00Z'</span>),
+(<span class="str">'card-00000000-0000-0000-0000-000000000002'</span>, <span class="str">'user-00000000-0000-0000-0000-000000000001'</span>, <span class="num">2.1</span>, <span class="num">1</span>, <span class="num">1</span>, <span class="str">'2026-01-15'</span>, <span class="str">'2026-01-14T10:00:00Z'</span>),
+(<span class="str">'card-00000000-0000-0000-0000-000000000003'</span>, <span class="str">'user-00000000-0000-0000-0000-000000000001'</span>, <span class="num">2.5</span>, <span class="num">0</span>, <span class="num">0</span>, <span class="str">'2026-01-15'</span>, <span class="kw">NULL</span>);</code></pre>
+<h3 id="3-srs-모듈">3. srs 모듈</h3>
+<h4 id="31-목킹-인터페이스-목록">3.1 목킹 인터페이스 목록</h4>
+<table class="md-table"><thead><tr><th>#</th><th>목킹 대상</th><th>통신 방식</th><th>방향</th><th>도구</th></tr></thead><tbody><tr><td>1</td><td>Redis (세션 캐시)</td><td>Redis Protocol</td><td>Outbound</td><td>Testcontainers</td></tr><tr><td>2</td><td>Kafka Producer (<code>card.reviewed</code>)</td><td>Kafka</td><td>Outbound</td><td>EmbeddedKafka</td></tr><tr><td>3</td><td>Kafka Producer (<code>card.review.due</code>)</td><td>Kafka</td><td>Outbound</td><td>EmbeddedKafka</td></tr><tr><td>4</td><td>PostgreSQL (card_schedules, review_sessions)</td><td>SQL</td><td>Outbound</td><td>Testcontainers</td></tr></tbody></table>
+<h4 id="32-sm2-알고리즘-검증-fixture">3.2 SM-2 알고리즘 검증 fixture</h4>
+<table class="md-table"><thead><tr><th>rating</th><th>이전 EF</th><th>이전 interval</th><th>기대 새 EF</th><th>기대 새 interval</th><th>기대 due_date</th></tr></thead><tbody><tr><td>0 (완전 오답)</td><td>2.5</td><td>7</td><td>1.7</td><td>1</td><td>2026-01-16</td></tr><tr><td>1 (거의 오답)</td><td>2.5</td><td>7</td><td>1.96</td><td>1</td><td>2026-01-16</td></tr><tr><td>2 (어렵게 맞음)</td><td>2.5</td><td>7</td><td>2.36</td><td>1</td><td>2026-01-16</td></tr><tr><td>3 (보통)</td><td>2.5</td><td>7</td><td>2.36</td><td>7</td><td>2026-01-22</td></tr><tr><td>4 (쉬움)</td><td>2.5</td><td>7</td><td>2.5</td><td>18</td><td>2026-02-02</td></tr><tr><td>5 (매우 쉬움)</td><td>2.5</td><td>7</td><td>2.6</td><td>18</td><td>2026-02-02</td></tr></tbody></table>
+<pre class="code-block" data-lang="java"><code><span class="anno">@ParameterizedTest</span>
+<span class="anno">@CsvSource</span>({
+    <span class="str">"0, 2.5, 7, 1.7, 1"</span>,
+    <span class="str">"1, 2.5, 7, 1.96, 1"</span>,
+    <span class="str">"2, 2.5, 7, 2.36, 1"</span>,
+    <span class="str">"3, 2.5, 7, 2.36, 7"</span>,
+    <span class="str">"4, 2.5, 7, 2.5, 18"</span>,
+    <span class="str">"5, 2.5, 7, 2.6, 18"</span>
+})
+<span class="kw">void</span> sm2_shouldCalculateCorrectly(<span class="type">int</span> rating, <span class="type">double</span> oldEF, <span class="type">int</span> oldInterval,
+                                   <span class="type">double</span> expectedEF, <span class="type">int</span> expectedInterval) {
+    SM2Result result = SM2Algorithm.calculate(rating, oldEF, oldInterval, <span class="num">3</span>);
+
+    assertThat(result.easinessFactor()).isCloseTo(expectedEF, within(<span class="num">0.01</span>));
+    assertThat(result.intervalDays()).isEqualTo(expectedInterval);
+}</code></pre>
+<h4 id="33-review-session-fixture">3.3 Review Session fixture</h4>
+<pre class="code-block" data-lang="java"><code><span class="anno">@Test</span>
+<span class="kw">void</span> startSession_shouldCreateSessionAndCacheInRedis() {
+    <span class="type">String</span> requestBody = <span class="str">""</span>"
+        {<span class="str">"deckId"</span>: <span class="str">"deck-00000000-0000-0000-0000-000000000001"</span>}
+        <span class="str">""</span>";
+
+    MvcResult result = mockMvc.perform(post(<span class="str">"/reviews/sessions"</span>)
+            .header(<span class="str">"Authorization"</span>, <span class="str">"Bearer "</span> + JwtTestFactory.USER1_TOKEN)
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(requestBody))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath(<span class="str">"$.data.sessionId"</span>).exists())
+        .andExpect(jsonPath(<span class="str">"$.data.totalCards"</span>).value(<span class="num">3</span>))
+        .andReturn();
+
+    <span class="cmt">// Redis에 세션 캐시 확인</span>
+    <span class="type">String</span> sessionId = JsonPath.read(result.getResponse().getContentAsString(), <span class="str">"$.data.sessionId"</span>);
+    <span class="type">String</span> cached = redisTemplate.opsForValue().<span class="kw">get</span>(<span class="str">"session:"</span> + sessionId);
+    assertThat(cached).isNotNull();
+}
+
+<span class="anno">@Test</span>
+<span class="kw">void</span> submitRating_shouldUpdateScheduleAndPublishEvent() {
+    <span class="type">String</span> requestBody = <span class="str">""</span>"
+        {<span class="str">"cardId"</span>: <span class="str">"card-00000000-0000-0000-0000-000000000001"</span>, <span class="str">"rating"</span>: <span class="num">4</span>, <span class="str">"timeSpentMs"</span>: <span class="num">5000</span>}
+        <span class="str">""</span>";
+
+    mockMvc.perform(post(<span class="str">"/reviews/sessions/session-00000000-0000-0000-0000-000000000001/submit"</span>)
+            .header(<span class="str">"Authorization"</span>, <span class="str">"Bearer "</span> + JwtTestFactory.USER1_TOKEN)
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(requestBody))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath(<span class="str">"$.data.nextInterval"</span>).value(<span class="num">18</span>))
+        .andExpect(jsonPath(<span class="str">"$.data.newEF"</span>).value(<span class="num">2.5</span>));
+
+    <span class="cmt">// Kafka event 확인</span>
+    <span class="type">List</span>&lt;<span class="type">ConsumerRecord</span>&lt;<span class="type">String</span>, Object&gt;&gt; records =
+        kafkaTestHelper.consumeMessages(<span class="str">"card.reviewed"</span>, <span class="num">1</span>, <span class="type">Duration</span>.ofSeconds(<span class="num">5</span>));
+    assertThat(records).hasSize(<span class="num">1</span>);
+}</code></pre>
+<h4 id="34-due_date-조회-테스트">3.4 due_date 조회 테스트</h4>
+<pre class="code-block" data-lang="java"><code><span class="anno">@Test</span>
+<span class="kw">void</span> getReviewQueue_shouldReturnOnlyDueCards() {
+    <span class="cmt">// given — due_date가 2026-01-15인 카드 3장 존재 (시드 데이터)</span>
+
+    <span class="cmt">// when</span>
+    mockMvc.perform(<span class="kw">get</span>(<span class="str">"/reviews/queue"</span>)
+            .header(<span class="str">"Authorization"</span>, <span class="str">"Bearer "</span> + JwtTestFactory.USER1_TOKEN))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath(<span class="str">"$.data.totalDue"</span>).value(<span class="num">3</span>))
+        .andExpect(jsonPath(<span class="str">"$.data.cards"</span>).isArray())
+        .andExpect(jsonPath(<span class="str">"$.data.cards.length()"</span>).value(<span class="num">3</span>));
+}</code></pre>
+<h3 id="4-spring-cloud-contract-provider-stub">4. Spring Cloud Contract — Provider Stub</h3>
+<p>learning-card는 <code>/internal/decks/copy</code>의 <strong>Provider</strong> 이므로 contract을 정의한다.</p>
+<pre class="code-block" data-lang="groovy"><code><span class="cmt">// src/test/resources/contracts/internal/copyDeck.groovy</span>
+Contract.make {
+    description <span class="str">"Internal API: copy deck for community sharing"</span>
+    request {
+        method POST()
+        url <span class="str">"/internal/decks/copy"</span>
+        headers {
+            contentType applicationJson()
+            header(<span class="str">"X-Internal-Auth"</span>, matching(<span class="str">".*"</span>))
+        }
+        body([
+            sourceDeckId: $(anyUuid()),
+            targetUserId: $(anyUuid()),
+            targetTenantId: $(anyUuid()),
+            newDeckName: $(optional(anyNonBlankString()))
+        ])
+    }
+    response {
+        status CREATED()
+        headers {
+            contentType applicationJson()
+        }
+        body([
+            copiedDeckId: $(anyUuid()),
+            cardCount: $(anyPositiveInt())
+        ])
+    }
+}</code></pre>
+<h3 id="5-review-session-postgresql-시드">5. Review Session PostgreSQL 시드</h3>
+<pre class="code-block" data-lang="sql"><code><span class="cmt">-- learning_srs_seed.sql</span>
+
+<span class="cmt">-- Review Sessions</span>
+<span class="kw">INSERT</span> <span class="kw">INTO</span> review_sessions (id, tenant_id, user_id, deck_id, total_cards, completed_cards, status, started_at) <span class="kw">VALUES</span>
+(<span class="str">'session-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'tenant-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'user-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'deck-00000000-0000-0000-0000-000000000001'</span>, <span class="num">3</span>, <span class="num">0</span>, <span class="str">'in_progress'</span>, <span class="str">'2026-01-15T10:00:00Z'</span>);</code></pre>
+<hr/>
+<h2 id="part-b-learningai-python-fastapi">Part B — learning-ai (Python / FastAPI)</h2>
+<h3 id="6-서비스-의존성-맵">6. 서비스 의존성 맵</h3>
+<div class="mermaid-block"><div class="mermaid-label">mermaid diagram</div><pre class="code-block"><code>graph LR
+    subgraph learning-ai
+        AI[ai 모듈]
+    end
+
+    subgraph External APIs
+        OPENAI[OpenAI API]
+        CLAUDE[Anthropic Claude API]
+    end
+
+    subgraph Infrastructure
+        PG[(PostgreSQL&lt;br/&gt;+ pgvector)]
+        ES[(Elasticsearch)]
+        REDIS[(Redis)]
+        KAFKA[Kafka]
+    end
+
+    AI --&gt; OPENAI
+    AI --&gt; CLAUDE
+    AI --&gt; PG
+    AI --&gt; ES
+    AI --&gt; REDIS
+    AI --&gt;|Consumer: note.created, note.updated| KAFKA</code></pre></div>
+<h3 id="7-ai-모듈-목킹-인터페이스-목록">7. ai 모듈 — 목킹 인터페이스 목록</h3>
+<table class="md-table"><thead><tr><th>#</th><th>목킹 대상</th><th>통신 방식</th><th>방향</th><th>도구</th></tr></thead><tbody><tr><td>1</td><td>OpenAI Embeddings API</td><td>REST</td><td>Outbound</td><td>respx</td></tr><tr><td>2</td><td>Anthropic Claude API</td><td>REST</td><td>Outbound</td><td>respx</td></tr><tr><td>3</td><td>PostgreSQL + pgvector</td><td>SQL</td><td>Outbound</td><td>testcontainers-python</td></tr><tr><td>4</td><td>Elasticsearch (BM25)</td><td>REST</td><td>Outbound</td><td>testcontainers-python</td></tr><tr><td>5</td><td>Redis (시맨틱 캐시)</td><td>Redis Protocol</td><td>Outbound</td><td>fakeredis</td></tr><tr><td>6</td><td>Kafka Consumer</td><td>Kafka</td><td>Inbound</td><td>confluent-kafka mock</td></tr></tbody></table>
+<h3 id="8-openai-embeddings-mock-respx">8. OpenAI Embeddings Mock (respx)</h3>
+<pre class="code-block" data-lang="python"><code><span class="kw">import</span> respx
+<span class="kw">import</span> httpx
+<span class="kw">import</span> json
+<span class="kw">from</span> pathlib <span class="kw">import</span> Path
+
+FIXTURE_DIR = Path(__file__).parent / <span class="str">"fixtures"</span> / <span class="str">"api_responses"</span>
+
+OPENAI_EMBEDDING_SUCCESS = {
+    <span class="str">"object"</span>: <span class="str">"list"</span>,
+    <span class="str">"data"</span>: [
+        {
+            <span class="str">"object"</span>: <span class="str">"embedding"</span>,
+            <span class="str">"index"</span>: <span class="num">0</span>,
+            <span class="str">"embedding"</span>: [<span class="num">0.0023</span>, -<span class="num">0.0121</span>, <span class="num">0.0156</span>, <span class="num">0.0087</span>, -<span class="num">0.0203</span>, <span class="num">0.0312</span>,
+                         -<span class="num">0.0045</span>, <span class="num">0.0189</span>, <span class="num">0.0267</span>, -<span class="num">0.0134</span>, <span class="num">0.0098</span>, <span class="num">0.0211</span>,
+                         -<span class="num">0.0176</span>, <span class="num">0.0043</span>, <span class="num">0.0289</span>, -<span class="num">0.0067</span>]
+        }
+    ],
+    <span class="str">"model"</span>: <span class="str">"text-embedding-3-small"</span>,
+    <span class="str">"usage"</span>: {<span class="str">"prompt_tokens"</span>: <span class="num">15</span>, <span class="str">"total_tokens"</span>: <span class="num">15</span>}
+}
+
+
+<span class="anno">@respx</span>.mock
+<span class="kw">async</span> <span class="kw">def</span> test_generate_embedding():
+    respx.post(<span class="str">"https://api.openai.com/v1/embeddings"</span>).mock(
+        return_value=httpx.Response(<span class="num">200</span>, json=OPENAI_EMBEDDING_SUCCESS)
+    )
+
+    <span class="kw">from</span> app.ai.embedding_service <span class="kw">import</span> EmbeddingService
+    service = EmbeddingService()
+    result = <span class="kw">await</span> service.generate(<span class="str">"머신러닝에서 과적합이란?"</span>)
+
+    <span class="kw">assert</span> len(result) == <span class="num">16</span>
+    <span class="kw">assert</span> respx.calls.call_count == <span class="num">1</span></code></pre>
+<h3 id="9-anthropic-claude-mock-respx">9. Anthropic Claude Mock (respx)</h3>
+<pre class="code-block" data-lang="python"><code>CLAUDE_CARD_GENERATION_SUCCESS = {
+    <span class="str">"id"</span>: <span class="str">"msg_mock_001"</span>,
+    <span class="str">"type"</span>: <span class="str">"message"</span>,
+    <span class="str">"role"</span>: <span class="str">"assistant"</span>,
+    <span class="str">"content"</span>: [
+        {
+            <span class="str">"type"</span>: <span class="str">"text"</span>,
+            <span class="str">"text"</span>: json.dumps([
+                {
+                    <span class="str">"cardType"</span>: <span class="str">"basic"</span>,
+                    <span class="str">"frontContent"</span>: <span class="str">"머신러닝에서 과적합이란?"</span>,
+                    <span class="str">"backContent"</span>: <span class="str">"훈련 데이터에 과도하게 맞춰져 새 데이터에 일반화 못하는 현상"</span>,
+                    <span class="str">"confidence"</span>: <span class="num">0.95</span>
+                },
+                {
+                    <span class="str">"cardType"</span>: <span class="str">"basic"</span>,
+                    <span class="str">"frontContent"</span>: <span class="str">"과적합 방지 기법 3가지는?"</span>,
+                    <span class="str">"backContent"</span>: <span class="str">"정규화, 드롭아웃, 교차 검증"</span>,
+                    <span class="str">"confidence"</span>: <span class="num">0.92</span>
+                }
+            ])
+        }
+    ],
+    <span class="str">"model"</span>: <span class="str">"claude-sonnet-4-20250514"</span>,
+    <span class="str">"stop_reason"</span>: <span class="str">"end_turn"</span>,
+    <span class="str">"usage"</span>: {<span class="str">"input_tokens"</span>: <span class="num">800</span>, <span class="str">"output_tokens"</span>: <span class="num">150</span>}
+}
+
+
+<span class="anno">@respx</span>.mock
+<span class="kw">async</span> <span class="kw">def</span> test_generate_cards_from_note():
+    respx.post(<span class="str">"https://api.anthropic.com/v1/messages"</span>).mock(
+        return_value=httpx.Response(<span class="num">200</span>, json=CLAUDE_CARD_GENERATION_SUCCESS)
+    )
+
+    <span class="kw">from</span> app.ai.card_generator <span class="kw">import</span> CardGenerator
+    generator = CardGenerator()
+    cards = <span class="kw">await</span> generator.generate(
+        note_text=<span class="str">"머신러닝은 인공지능의 한 분야로..."</span>,
+        card_type=<span class="str">"basic"</span>,
+        count=<span class="num">5</span>
+    )
+
+    <span class="kw">assert</span> len(cards) == <span class="num">2</span>
+    <span class="kw">assert</span> cards[<span class="num">0</span>][<span class="str">"cardType"</span>] == <span class="str">"basic"</span>
+    <span class="kw">assert</span> cards[<span class="num">0</span>][<span class="str">"confidence"</span>] &gt; <span class="num">0.9</span></code></pre>
+<h3 id="10-redis-시맨틱-캐시-mock-fakeredis">10. Redis 시맨틱 캐시 Mock (fakeredis)</h3>
+<pre class="code-block" data-lang="python"><code><span class="kw">import</span> fakeredis
+<span class="kw">import</span> pytest
+
+
+<span class="anno">@pytest</span>.fixture
+<span class="kw">def</span> redis_client():
+    <span class="kw">return</span> fakeredis.FakeRedis(decode_responses=<span class="kw">True</span>)
+
+
+<span class="kw">async</span> <span class="kw">def</span> test_semantic_cache_hit(redis_client):
+    <span class="str">"""코사인 유사도 &gt; 0.95일 때 캐시 히트"""</span>
+    <span class="kw">from</span> app.ai.semantic_cache <span class="kw">import</span> SemanticCache
+
+    cache = SemanticCache(redis_client=redis_client, threshold=<span class="num">0.95</span>)
+
+    <span class="cmt"># 캐시에 저장</span>
+    query_embedding = [<span class="num">0.1</span>] * <span class="num">16</span>
+    cached_response = {<span class="str">"answer"</span>: <span class="str">"캐시된 답변"</span>, <span class="str">"sources"</span>: [<span class="str">"note-001"</span>]}
+    <span class="kw">await</span> cache.put(query_embedding, cached_response)
+
+    <span class="cmt"># 동일 임베딩으로 조회 → 히트</span>
+    result = <span class="kw">await</span> cache.get(query_embedding)
+    <span class="kw">assert</span> result is <span class="kw">not</span> <span class="kw">None</span>
+    <span class="kw">assert</span> result[<span class="str">"answer"</span>] == <span class="str">"캐시된 답변"</span>
+
+
+<span class="kw">async</span> <span class="kw">def</span> test_semantic_cache_miss(redis_client):
+    <span class="str">"""코사인 유사도 &lt; 0.95일 때 캐시 미스"""</span>
+    <span class="kw">from</span> app.ai.semantic_cache <span class="kw">import</span> SemanticCache
+
+    cache = SemanticCache(redis_client=redis_client, threshold=<span class="num">0.95</span>)
+
+    <span class="cmt"># 캐시에 저장</span>
+    query_embedding = [<span class="num">0.1</span>] * <span class="num">16</span>
+    cached_response = {<span class="str">"answer"</span>: <span class="str">"캐시된 답변"</span>}
+    <span class="kw">await</span> cache.put(query_embedding, cached_response)
+
+    <span class="cmt"># 다른 임베딩으로 조회 → 미스</span>
+    different_embedding = [<span class="num">0.9</span>] * <span class="num">16</span>
+    result = <span class="kw">await</span> cache.get(different_embedding)
+    <span class="kw">assert</span> result is <span class="kw">None</span></code></pre>
+<h3 id="11-kafka-consumer-mock">11. Kafka Consumer Mock</h3>
+<pre class="code-block" data-lang="python"><code><span class="kw">from</span> unittest.mock <span class="kw">import</span> MagicMock, patch
+
+
+<span class="kw">def</span> test_note_created_consumer_triggers_card_generation():
+    <span class="str">"""note.created 소비 시 카드 자동 생성 트리거"""</span>
+    event_data = {
+        <span class="str">"noteId"</span>: <span class="str">"note-00000000-0000-0000-0000-000000000001"</span>,
+        <span class="str">"userId"</span>: <span class="str">"user-00000000-0000-0000-0000-000000000001"</span>,
+        <span class="str">"title"</span>: <span class="str">"머신러닝 기초 정리"</span>,
+        <span class="str">"contentLength"</span>: <span class="num">2500</span>,
+        <span class="str">"tags"</span>: [<span class="str">"머신러닝"</span>, <span class="str">"AI"</span>]
+    }
+
+    <span class="kw">with</span> patch(<span class="str">"app.ai.card_generator.CardGenerator.generate"</span>) <span class="kw">as</span> mock_generate:
+        mock_generate.return_value = [
+            {<span class="str">"cardType"</span>: <span class="str">"basic"</span>, <span class="str">"frontContent"</span>: <span class="str">"Q"</span>, <span class="str">"backContent"</span>: <span class="str">"A"</span>}
+        ]
+
+        <span class="kw">from</span> app.ai.consumers <span class="kw">import</span> handle_note_created
+        handle_note_created(event_data)
+
+        mock_generate.assert_called_once()
+
+
+<span class="kw">def</span> test_note_updated_consumer_regenerates_embeddings():
+    <span class="str">"""note.updated 소비 시 임베딩 재생성"""</span>
+    event_data = {
+        <span class="str">"noteId"</span>: <span class="str">"note-00000000-0000-0000-0000-000000000001"</span>,
+        <span class="str">"userId"</span>: <span class="str">"user-00000000-0000-0000-0000-000000000001"</span>,
+        <span class="str">"title"</span>: <span class="str">"머신러닝 기초 정리 (수정)"</span>,
+        <span class="str">"contentLength"</span>: <span class="num">3200</span>,
+        <span class="str">"version"</span>: <span class="num">2</span>,
+        <span class="str">"changedFields"</span>: [<span class="str">"content"</span>]
+    }
+
+    <span class="kw">with</span> patch(<span class="str">"app.ai.embedding_service.EmbeddingService.regenerate_for_note"</span>) <span class="kw">as</span> mock_regen:
+        <span class="kw">from</span> app.ai.consumers <span class="kw">import</span> handle_note_updated
+        handle_note_updated(event_data)
+
+        mock_regen.assert_called_once_with(
+            note_id=<span class="str">"note-00000000-0000-0000-0000-000000000001"</span>
+        )</code></pre>
+<h3 id="12-시맨틱-검색-테스트-pgvector">12. 시맨틱 검색 테스트 (pgvector)</h3>
+<pre class="code-block" data-lang="python"><code><span class="kw">import</span> pytest
+<span class="kw">from</span> testcontainers.postgres <span class="kw">import</span> PostgresContainer
+
+
+<span class="anno">@pytest</span>.fixture(scope=<span class="str">"session"</span>)
+<span class="kw">def</span> pg_container():
+    <span class="kw">with</span> PostgresContainer(
+        image=<span class="str">"pgvector/pgvector:pg16"</span>,
+        dbname=<span class="str">"synapse_learning_test"</span>
+    ) <span class="kw">as</span> pg:
+        <span class="kw">yield</span> pg
+
+
+<span class="kw">async</span> <span class="kw">def</span> test_semantic_search(pg_container):
+    <span class="str">"""시맨틱 검색: 쿼리 임베딩 → cosine similarity 기반 결과"""</span>
+    <span class="kw">from</span> app.ai.search_service <span class="kw">import</span> SemanticSearchService
+
+    service = SemanticSearchService(db_url=pg_container.get_connection_url())
+
+    <span class="cmt"># 시드 데이터 삽입 (note_chunks with embeddings)</span>
+    <span class="kw">await</span> service.insert_chunk(
+        note_id=<span class="str">"note-00000000-0000-0000-0000-000000000001"</span>,
+        chunk_text=<span class="str">"과적합을 방지하기 위해 정규화 기법을 사용한다."</span>,
+        embedding=[<span class="num">0.1</span>] * <span class="num">16</span>
+    )
+
+    <span class="cmt"># 검색</span>
+    results = <span class="kw">await</span> service.search(
+        query_embedding=[<span class="num">0.1</span>] * <span class="num">16</span>,
+        limit=<span class="num">10</span>,
+        threshold=<span class="num">0.7</span>
+    )
+
+    <span class="kw">assert</span> len(results) &gt;= <span class="num">1</span>
+    <span class="kw">assert</span> results[<span class="num">0</span>][<span class="str">"noteId"</span>] == <span class="str">"note-00000000-0000-0000-0000-000000000001"</span>
+    <span class="kw">assert</span> results[<span class="num">0</span>][<span class="str">"score"</span>] &gt;= <span class="num">0.7</span></code></pre>
+<h3 id="13-하이브리드-검색-rrf-테스트">13. 하이브리드 검색 (RRF) 테스트</h3>
+<pre class="code-block" data-lang="python"><code><span class="kw">async</span> <span class="kw">def</span> test_hybrid_search_rrf():
+    <span class="str">"""시맨틱 + BM25 → RRF(Reciprocal Rank Fusion) 결합"""</span>
+    <span class="kw">from</span> app.ai.search_service <span class="kw">import</span> HybridSearchService
+
+    service = HybridSearchService(...)
+
+    <span class="cmt"># Mock semantic results</span>
+    semantic_results = [
+        {<span class="str">"noteId"</span>: <span class="str">"note-001"</span>, <span class="str">"score"</span>: <span class="num">0.95</span>, <span class="str">"rank"</span>: <span class="num">1</span>},
+        {<span class="str">"noteId"</span>: <span class="str">"note-002"</span>, <span class="str">"score"</span>: <span class="num">0.85</span>, <span class="str">"rank"</span>: <span class="num">2</span>},
+        {<span class="str">"noteId"</span>: <span class="str">"note-003"</span>, <span class="str">"score"</span>: <span class="num">0.75</span>, <span class="str">"rank"</span>: <span class="num">3</span>},
+    ]
+
+    <span class="cmt"># Mock BM25 results</span>
+    bm25_results = [
+        {<span class="str">"noteId"</span>: <span class="str">"note-002"</span>, <span class="str">"score"</span>: <span class="num">12.5</span>, <span class="str">"rank"</span>: <span class="num">1</span>},
+        {<span class="str">"noteId"</span>: <span class="str">"note-001"</span>, <span class="str">"score"</span>: <span class="num">10.2</span>, <span class="str">"rank"</span>: <span class="num">2</span>},
+        {<span class="str">"noteId"</span>: <span class="str">"note-004"</span>, <span class="str">"score"</span>: <span class="num">8.1</span>, <span class="str">"rank"</span>: <span class="num">3</span>},
+    ]
+
+    <span class="cmt"># RRF fusion (k=60)</span>
+    fused = service.rrf_merge(semantic_results, bm25_results, k=<span class="num">60</span>)
+
+    <span class="cmt"># note-002는 양쪽 모두 상위 → RRF 점수 최고</span>
+    <span class="kw">assert</span> fused[<span class="num">0</span>][<span class="str">"noteId"</span>] == <span class="str">"note-002"</span>
+    <span class="cmt"># note-001은 양쪽 존재하지만 semantic 1위, bm25 2위</span>
+    <span class="kw">assert</span> fused[<span class="num">1</span>][<span class="str">"noteId"</span>] == <span class="str">"note-001"</span></code></pre>
+<h3 id="14-conftestpy-전체">14. conftest.py (전체)</h3>
+<pre class="code-block" data-lang="python"><code><span class="kw">import</span> pytest
+<span class="kw">import</span> fakeredis
+<span class="kw">from</span> pathlib <span class="kw">import</span> Path
+<span class="kw">from</span> unittest.mock <span class="kw">import</span> MagicMock
+
+FIXTURE_DIR = Path(__file__).parent / <span class="str">"fixtures"</span>
+
+
+<span class="anno">@pytest</span>.fixture
+<span class="kw">def</span> redis_client():
+    <span class="str">"""fakeredis 인스턴스"""</span>
+    <span class="kw">return</span> fakeredis.FakeRedis(decode_responses=<span class="kw">True</span>)
+
+
+<span class="anno">@pytest</span>.fixture
+<span class="kw">def</span> kafka_consumer_mock():
+    <span class="str">"""Kafka Consumer mock"""</span>
+    consumer = MagicMock()
+    consumer.messages = []
+    <span class="kw">return</span> consumer
+
+
+<span class="anno">@pytest</span>.fixture
+<span class="kw">def</span> kafka_producer_mock():
+    <span class="str">"""Kafka Producer mock"""</span>
+    producer = MagicMock()
+    producer.sent = []
+
+    <span class="kw">def</span> mock_produce(topic, key=<span class="kw">None</span>, value=<span class="kw">None</span>, **kwargs):
+        producer.sent.append({<span class="str">"topic"</span>: topic, <span class="str">"key"</span>: key, <span class="str">"value"</span>: value})
+
+    producer.produce = mock_produce
+    <span class="kw">return</span> producer
+
+
+<span class="kw">def</span> load_fixture(name: str) -&gt; dict:
+    <span class="str">"""JSON fixture 로드"""</span>
+    <span class="kw">import</span> json
+    <span class="kw">with</span> open(FIXTURE_DIR / f<span class="str">"{name}.json"</span>) <span class="kw">as</span> f:
+        <span class="kw">return</span> json.load(f)</code></pre>
+<hr/>
+<h2 id="15-applicationtestyml-learningcard">15. application-test.yml (learning-card)</h2>
+<pre class="code-block" data-lang="yaml"><code><span class="key">spring</span>:
+  <span class="key">profiles</span>:
+    <span class="key">active</span>: test
+  <span class="key">datasource</span>:
+    <span class="key">url</span>: ${SPRING_DATASOURCE_URL}
+    <span class="key">username</span>: ${SPRING_DATASOURCE_USERNAME}
+    <span class="key">password</span>: ${SPRING_DATASOURCE_PASSWORD}
+  <span class="key">jpa</span>:
+    <span class="key">hibernate</span>:
+      <span class="key">ddl-auto</span>: create-drop
+    <span class="key">show-sql</span>: <span class="kw">true</span>
+  <span class="key">data</span>:
+    <span class="key">redis</span>:
+      <span class="key">host</span>: ${SPRING_DATA_REDIS_HOST}
+      <span class="key">port</span>: ${SPRING_DATA_REDIS_PORT}
+  <span class="key">kafka</span>:
+    <span class="key">bootstrap-servers</span>: ${spring.embedded.kafka.brokers}
+    <span class="key">consumer</span>:
+      <span class="key">auto-offset-reset</span>: earliest
+      <span class="key">group-id</span>: learning-card-test-group
+    <span class="key">properties</span>:
+      <span class="key">schema.registry.url</span>: mock://test-schema-registry
+
+<span class="key">jwt</span>:
+  <span class="key">secret</span>: test-jwt-secret-key-must-be-at-least-<span class="num">256</span>-bits-long-for-hs256
+
+<span class="key">srs</span>:
+  <span class="key">review-due</span>:
+    <span class="key">batch-cron</span>: <span class="str">"0 0 7 * * *"</span>
+    <span class="key">timezone</span>: Asia/Seoul</code></pre>
+<h2 id="16-pytestini-learningai">16. pytest.ini (learning-ai)</h2>
+<pre class="code-block" data-lang="ini"><code>[pytest]
+asyncio_mode = auto
+testpaths = tests
+env =
+    DATABASE_URL=postgresql://synapse:test@localhost:5432/synapse_learning_test
+    REDIS_URL=redis://localhost:6379/0
+    OPENAI_API_KEY=sk-test-mock-key
+    ANTHROPIC_API_KEY=sk-ant-test-mock-key
+    KAFKA_BOOTSTRAP_SERVERS=localhost:9092
+    ELASTICSEARCH_URL=http://localhost:9200</code></pre>
+
+  </main>
+  <footer class="doc-footer">
+    <span>Synapse · Mocking Docs v1.0 · 2026-05-14</span>
+    <a href="https://github.com/team-project-final/documents/blob/main/docs/mocking/04-learning-svc-mocking.md" target="_blank" rel="noopener">edit on GitHub →</a>
+  </footer>
+</div>
+</body>
+</html>

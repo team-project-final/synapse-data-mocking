@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>05 · Frontend (Flutter) — Synapse Mocking Docs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="doc-style.css" />
+</head>
+<body>
+<div class="doc-shell">
+  <header class="doc-header">
+    <div class="doc-header-meta">
+      <span class="doc-idx">DOC 05</span>
+      <span class="doc-en">synapse-frontend</span>
+    </div>
+    <h1 class="doc-h1">Frontend (Flutter)</h1>
+    <div class="doc-links">
+      <a class="doc-link" href="https://github.com/team-project-final/documents/blob/main/docs/mocking/05-frontend-mocking.md" target="_blank" rel="noopener">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        GitHub 원본 보기
+      </a>
+      <a class="doc-link" href="https://github.com/team-project-final/documents/raw/main/docs/mocking/05-frontend-mocking.md" target="_blank" rel="noopener">📥 raw .md 다운로드</a>
+    </div>
+  </header>
+  <main class="doc-body">
+<h1 id="frontend-목킹-정의서">Frontend 목킹 정의서</h1>
+<blockquote><strong>프로젝트</strong>: Synapse — 통합 학습-지식 그래프 SaaS <strong>앱</strong>: synapse-frontend (Flutter 3.x) <strong>Owner</strong>: 전체 팀원 <strong>작성일</strong>: 2026-05-14</blockquote>
+<hr/>
+<h2 id="1-아키텍처-개요">1. 아키텍처 개요</h2>
+<div class="mermaid-block"><div class="mermaid-label">mermaid diagram</div><pre class="code-block"><code>graph LR
+    subgraph Flutter App
+        UI[UI Layer&lt;br/&gt;Widgets + Pages]
+        RVP[Riverpod Layer&lt;br/&gt;State Management]
+        REPO[Repository Layer&lt;br/&gt;API Abstraction]
+        DS[Data Source&lt;br/&gt;HTTP Client]
+    end
+
+    subgraph Mock Layer
+        MOCK_INT[MockInterceptor&lt;br/&gt;dio mock adapter]
+        MOCK_REPO[Mock Repository&lt;br/&gt;Mockito]
+        MOCK_DATA[Mock Data&lt;br/&gt;Fixture Factory]
+    end
+
+    UI --&gt; RVP
+    RVP --&gt; REPO
+    REPO --&gt; DS
+    DS -.-&gt; MOCK_INT
+    REPO -.-&gt; MOCK_REPO
+    MOCK_REPO -.-&gt; MOCK_DATA</code></pre></div>
+<p><strong>Mock 적용 레벨:</strong></p>
+<ul><li><strong>Unit 테스트</strong>: Mockito로 Repository mock → Provider 테스트</li><li><strong>Widget 테스트</strong>: MockInterceptor로 HTTP 호출 가로채기 → 화면 테스트</li><li><strong>Golden 테스트</strong>: 고정 데이터로 스냅샷 비교</li></ul>
+<hr/>
+<h2 id="2-dio-mockinterceptor-설정">2. dio MockInterceptor 설정</h2>
+<h3 id="21-mockhttpclientadapter">2.1 MockHttpClientAdapter</h3>
+<pre class="code-block" data-lang="dart"><code><span class="cmt">// test/helpers/mock_dio_adapter.dart</span>
+
+<span class="kw">import</span> <span class="str">'dart:convert'</span>;
+<span class="kw">import</span> <span class="str">'package:dio/dio.dart'</span>;
+
+<span class="kw">class</span> MockDioAdapter <span class="kw">implements</span> HttpClientAdapter {
+  <span class="kw">final</span> <span class="type">Map</span>&lt;<span class="type">String</span>, MockResponse&gt; _mappings = {};
+
+  <span class="kw">void</span> onGet(<span class="type">String</span> path, MockResponse response) {
+    _mappings[<span class="str">'GET:$path'</span>] = response;
+  }
+
+  <span class="kw">void</span> onPost(<span class="type">String</span> path, MockResponse response) {
+    _mappings[<span class="str">'POST:$path'</span>] = response;
+  }
+
+  <span class="kw">void</span> onPatch(<span class="type">String</span> path, MockResponse response) {
+    _mappings[<span class="str">'PATCH:$path'</span>] = response;
+  }
+
+  <span class="kw">void</span> onDelete(<span class="type">String</span> path, MockResponse response) {
+    _mappings[<span class="str">'DELETE:$path'</span>] = response;
+  }
+
+  <span class="kw">void</span> onPut(<span class="type">String</span> path, MockResponse response) {
+    _mappings[<span class="str">'PUT:$path'</span>] = response;
+  }
+
+  <span class="anno">@override</span>
+  <span class="type">Future</span>&lt;ResponseBody&gt; fetch(
+    RequestOptions options,
+    <span class="type">Stream</span>&lt;<span class="type">List</span>&lt;<span class="type">int</span>&gt;&gt;? requestStream,
+    <span class="type">Future</span>&lt;<span class="kw">void</span>&gt;? cancelFuture,
+  ) <span class="kw">async</span> {
+    <span class="kw">final</span> key = <span class="str">'${options.method}:${options.path}'</span>;
+
+    <span class="cmt">// 정확한 매칭 먼저, 없으면 패턴 매칭</span>
+    <span class="kw">final</span> response = _mappings[key] ?? _findPatternMatch(options);
+
+    <span class="kw">if</span> (response == <span class="kw">null</span>) {
+      <span class="kw">throw</span> DioException(
+        requestOptions: options,
+        error: <span class="str">'No mock mapping for $key'</span>,
+        type: DioExceptionType.unknown,
+      );
+    }
+
+    <span class="cmt">// 네트워크 지연 시뮬레이션</span>
+    <span class="kw">if</span> (response.delay != <span class="kw">null</span>) {
+      <span class="kw">await</span> <span class="type">Future</span>.delayed(response.delay!);
+    }
+
+    <span class="kw">return</span> ResponseBody.fromString(
+      jsonEncode(response.data),
+      response.statusCode,
+      headers: {
+        <span class="str">'content-type'</span>: [<span class="str">'application/json'</span>],
+      },
+    );
+  }
+
+  MockResponse? _findPatternMatch(RequestOptions options) {
+    <span class="kw">for</span> (<span class="kw">final</span> entry <span class="kw">in</span> _mappings.entries) {
+      <span class="kw">final</span> pattern = entry.key.split(<span class="str">':'</span>);
+      <span class="kw">if</span> (pattern[<span class="num">0</span>] == options.method &amp;&amp;
+          RegExp(pattern[<span class="num">1</span>]).hasMatch(options.path)) {
+        <span class="kw">return</span> entry.value;
+      }
+    }
+    <span class="kw">return</span> <span class="kw">null</span>;
+  }
+
+  <span class="anno">@override</span>
+  <span class="kw">void</span> close({bool force = <span class="kw">false</span>}) {}
+}
+
+<span class="kw">class</span> MockResponse {
+  <span class="kw">final</span> <span class="type">int</span> statusCode;
+  <span class="kw">final</span> <span class="type">Map</span>&lt;<span class="type">String</span>, dynamic&gt; data;
+  <span class="kw">final</span> <span class="type">Duration</span>? delay;
+
+  MockResponse({
+    required <span class="kw">this</span>.statusCode,
+    required <span class="kw">this</span>.data,
+    <span class="kw">this</span>.delay,
+  });
+}</code></pre>
+<h3 id="22-환경별-전환">2.2 환경별 전환</h3>
+<pre class="code-block" data-lang="dart"><code><span class="cmt">// lib/core/network/dio_client.dart</span>
+
+Dio createDioClient({bool useMock = <span class="kw">false</span>}) {
+  <span class="kw">final</span> dio = Dio(BaseOptions(
+    baseUrl: <span class="str">'https://api.synapse.app/api/v1'</span>,
+    connectTimeout: <span class="kw">const</span> <span class="type">Duration</span>(seconds: <span class="num">10</span>),
+    receiveTimeout: <span class="kw">const</span> <span class="type">Duration</span>(seconds: <span class="num">10</span>),
+  ));
+
+  <span class="kw">if</span> (useMock) {
+    dio.httpClientAdapter = MockDioAdapter();
+  }
+
+  <span class="kw">return</span> dio;
+}</code></pre>
+<hr/>
+<h2 id="3-platform-서비스-mock-responses-12개">3. Platform 서비스 Mock Responses (12개)</h2>
+<h3 id="31-auth">3.1 Auth</h3>
+<pre class="code-block" data-lang="dart"><code><span class="cmt">// test/fixtures/responses/mock_platform_auth_responses.dart</span>
+
+<span class="kw">const</span> mockSignupSuccess = {
+  <span class="str">'success'</span>: <span class="kw">true</span>,
+  <span class="str">'data'</span>: {
+    <span class="str">'userId'</span>: <span class="str">'user-00000000-0000-0000-0000-000000000001'</span>,
+    <span class="str">'tenantId'</span>: <span class="str">'tenant-00000000-0000-0000-0000-000000000001'</span>,
+    <span class="str">'email'</span>: <span class="str">'user1@example.com'</span>,
+    <span class="str">'displayName'</span>: <span class="str">'홍길동'</span>,
+  },
+  <span class="str">'meta'</span>: {<span class="str">'timestamp'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>, <span class="str">'requestId'</span>: <span class="str">'req-mock-001'</span>},
+};
+
+<span class="kw">const</span> mockLoginSuccess = {
+  <span class="str">'success'</span>: <span class="kw">true</span>,
+  <span class="str">'data'</span>: {
+    <span class="str">'accessToken'</span>: <span class="str">'mock_jwt_access_token_for_testing'</span>,
+    <span class="str">'expiresIn'</span>: <span class="num">900</span>,
+    <span class="str">'user'</span>: {
+      <span class="str">'id'</span>: <span class="str">'user-00000000-0000-0000-0000-000000000001'</span>,
+      <span class="str">'email'</span>: <span class="str">'user1@example.com'</span>,
+      <span class="str">'displayName'</span>: <span class="str">'홍길동'</span>,
+    },
+  },
+  <span class="str">'meta'</span>: {<span class="str">'timestamp'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>, <span class="str">'requestId'</span>: <span class="str">'req-mock-002'</span>},
+};
+
+<span class="kw">const</span> mockRefreshSuccess = {
+  <span class="str">'success'</span>: <span class="kw">true</span>,
+  <span class="str">'data'</span>: {
+    <span class="str">'accessToken'</span>: <span class="str">'mock_jwt_refreshed_token'</span>,
+    <span class="str">'expiresIn'</span>: <span class="num">900</span>,
+  },
+  <span class="str">'meta'</span>: {<span class="str">'timestamp'</span>: <span class="str">'2026-01-15T10:15:00Z'</span>, <span class="str">'requestId'</span>: <span class="str">'req-mock-003'</span>},
+};
+
+<span class="kw">const</span> mockLogoutSuccess = {
+  <span class="str">'success'</span>: <span class="kw">true</span>,
+  <span class="str">'data'</span>: <span class="kw">null</span>,
+  <span class="str">'meta'</span>: {<span class="str">'timestamp'</span>: <span class="str">'2026-01-15T10:30:00Z'</span>, <span class="str">'requestId'</span>: <span class="str">'req-mock-004'</span>},
+};
+
+<span class="kw">const</span> mockOAuthRedirect = {
+  <span class="str">'success'</span>: <span class="kw">true</span>,
+  <span class="str">'data'</span>: {
+    <span class="str">'redirectUrl'</span>: <span class="str">'https://accounts.google.com/o/oauth2/auth?client_id=mock'</span>,
+  },
+  <span class="str">'meta'</span>: {<span class="str">'timestamp'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>, <span class="str">'requestId'</span>: <span class="str">'req-mock-005'</span>},
+};
+
+<span class="kw">const</span> mockMfaSetup = {
+  <span class="str">'success'</span>: <span class="kw">true</span>,
+  <span class="str">'data'</span>: {
+    <span class="str">'secret'</span>: <span class="str">'JBSWY3DPEHPK3PXP'</span>,
+    <span class="str">'qrCodeUrl'</span>: <span class="str">'otpauth://totp/Synapse:user1@example.com?secret=JBSWY3DPEHPK3PXP'</span>,
+    <span class="str">'qrCodeImage'</span>: <span class="str">'data:image/png;base64,mockBase64Data'</span>,
+  },
+  <span class="str">'meta'</span>: {<span class="str">'timestamp'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>, <span class="str">'requestId'</span>: <span class="str">'req-mock-006'</span>},
+};</code></pre>
+<h3 id="32-billing">3.2 Billing</h3>
+<pre class="code-block" data-lang="dart"><code><span class="cmt">// test/fixtures/responses/mock_platform_billing_responses.dart</span>
+
+<span class="kw">const</span> mockPlansListSuccess = {
+  <span class="str">'success'</span>: <span class="kw">true</span>,
+  <span class="str">'data'</span>: [
+    {
+      <span class="str">'code'</span>: <span class="str">'free'</span>,
+      <span class="str">'name'</span>: <span class="str">'Free'</span>,
+      <span class="str">'price'</span>: <span class="num">0</span>,
+      <span class="str">'currency'</span>: <span class="str">'USD'</span>,
+      <span class="str">'interval'</span>: <span class="str">'month'</span>,
+      <span class="str">'features'</span>: [<span class="str">'unlimited_notes'</span>, <span class="str">'10_ai_day'</span>, <span class="str">'1gb_storage'</span>],
+    },
+    {
+      <span class="str">'code'</span>: <span class="str">'pro'</span>,
+      <span class="str">'name'</span>: <span class="str">'Pro'</span>,
+      <span class="str">'price'</span>: <span class="num">9.99</span>,
+      <span class="str">'currency'</span>: <span class="str">'USD'</span>,
+      <span class="str">'interval'</span>: <span class="str">'month'</span>,
+      <span class="str">'features'</span>: [<span class="str">'unlimited_notes'</span>, <span class="str">'500_ai_month'</span>, <span class="str">'10gb_storage'</span>],
+    },
+    {
+      <span class="str">'code'</span>: <span class="str">'team'</span>,
+      <span class="str">'name'</span>: <span class="str">'Team'</span>,
+      <span class="str">'price'</span>: <span class="num">19.99</span>,
+      <span class="str">'currency'</span>: <span class="str">'USD'</span>,
+      <span class="str">'interval'</span>: <span class="str">'month'</span>,
+      <span class="str">'features'</span>: [<span class="str">'unlimited_notes'</span>, <span class="str">'1000_ai_month'</span>, <span class="str">'50gb_storage'</span>, <span class="str">'20_members'</span>],
+    },
+  ],
+  <span class="str">'meta'</span>: {<span class="str">'timestamp'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>, <span class="str">'requestId'</span>: <span class="str">'req-mock-010'</span>},
+};
+
+<span class="kw">const</span> mockCheckoutUrlSuccess = {
+  <span class="str">'success'</span>: <span class="kw">true</span>,
+  <span class="str">'data'</span>: {
+    <span class="str">'checkoutUrl'</span>: <span class="str">'https://checkout.stripe.com/c/pay/cs_test_mock_001'</span>,
+  },
+  <span class="str">'meta'</span>: {<span class="str">'timestamp'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>, <span class="str">'requestId'</span>: <span class="str">'req-mock-011'</span>},
+};
+
+<span class="kw">const</span> mockSubscriptionSuccess = {
+  <span class="str">'success'</span>: <span class="kw">true</span>,
+  <span class="str">'data'</span>: {
+    <span class="str">'plan'</span>: <span class="str">'pro'</span>,
+    <span class="str">'status'</span>: <span class="str">'active'</span>,
+    <span class="str">'currentPeriodEnd'</span>: <span class="str">'2026-02-15'</span>,
+    <span class="str">'cancelAtPeriodEnd'</span>: <span class="kw">false</span>,
+  },
+  <span class="str">'meta'</span>: {<span class="str">'timestamp'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>, <span class="str">'requestId'</span>: <span class="str">'req-mock-012'</span>},
+};
+
+<span class="kw">const</span> mockPortalUrlSuccess = {
+  <span class="str">'success'</span>: <span class="kw">true</span>,
+  <span class="str">'data'</span>: {
+    <span class="str">'portalUrl'</span>: <span class="str">'https://billing.stripe.com/p/session/mock_001'</span>,
+  },
+  <span class="str">'meta'</span>: {<span class="str">'timestamp'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>, <span class="str">'requestId'</span>: <span class="str">'req-mock-013'</span>},
+};</code></pre>
+<h3 id="33-tenant">3.3 Tenant</h3>
+<pre class="code-block" data-lang="dart"><code><span class="cmt">// test/fixtures/responses/mock_platform_tenant_responses.dart</span>
+
+<span class="kw">const</span> mockTenantContext = {
+  <span class="str">'success'</span>: <span class="kw">true</span>,
+  <span class="str">'data'</span>: {
+    <span class="str">'tenantId'</span>: <span class="str">'tenant-00000000-0000-0000-0000-000000000001'</span>,
+    <span class="str">'name'</span>: <span class="str">'My Workspace'</span>,
+    <span class="str">'plan'</span>: <span class="str">'pro'</span>,
+    <span class="str">'role'</span>: <span class="str">'owner'</span>,
+    <span class="str">'quotas'</span>: {
+      <span class="str">'notes'</span>: {<span class="str">'used'</span>: <span class="num">45</span>, <span class="str">'max'</span>: -<span class="num">1</span>},
+      <span class="str">'aiGenerations'</span>: {<span class="str">'used'</span>: <span class="num">120</span>, <span class="str">'max'</span>: <span class="num">500</span>},
+    },
+  },
+  <span class="str">'meta'</span>: {<span class="str">'timestamp'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>, <span class="str">'requestId'</span>: <span class="str">'req-mock-014'</span>},
+};
+
+<span class="kw">const</span> mockTenantUsage = {
+  <span class="str">'success'</span>: <span class="kw">true</span>,
+  <span class="str">'data'</span>: {
+    <span class="str">'storage'</span>: {<span class="str">'usedBytes'</span>: <span class="num">524288000</span>, <span class="str">'maxBytes'</span>: <span class="num">10737418240</span>},
+    <span class="str">'aiGenerations'</span>: {<span class="str">'used'</span>: <span class="num">120</span>, <span class="str">'max'</span>: <span class="num">500</span>, <span class="str">'resetDate'</span>: <span class="str">'2026-02-01'</span>},
+    <span class="str">'apiCalls'</span>: {<span class="str">'used'</span>: <span class="num">5000</span>, <span class="str">'max'</span>: -<span class="num">1</span>},
+  },
+  <span class="str">'meta'</span>: {<span class="str">'timestamp'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>, <span class="str">'requestId'</span>: <span class="str">'req-mock-015'</span>},
+};</code></pre>
+<hr/>
+<h2 id="4-engagement-서비스-mock-responses-15개">4. Engagement 서비스 Mock Responses (15개)</h2>
+<h3 id="41-community">4.1 Community</h3>
+<pre class="code-block" data-lang="dart"><code><span class="cmt">// test/fixtures/responses/mock_engagement_community_responses.dart</span>
+
+<span class="kw">const</span> mockGroupsListSuccess = {
+  <span class="str">'success'</span>: <span class="kw">true</span>,
+  <span class="str">'data'</span>: [
+    {
+      <span class="str">'id'</span>: <span class="str">'group-00000000-0000-0000-0000-000000000001'</span>,
+      <span class="str">'name'</span>: <span class="str">'ML 스터디'</span>,
+      <span class="str">'memberCount'</span>: <span class="num">12</span>,
+      <span class="str">'myRole'</span>: <span class="str">'owner'</span>,
+      <span class="str">'status'</span>: <span class="str">'active'</span>,
+      <span class="str">'updatedAt'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>,
+    },
+    {
+      <span class="str">'id'</span>: <span class="str">'group-00000000-0000-0000-0000-000000000002'</span>,
+      <span class="str">'name'</span>: <span class="str">'비공개 스터디'</span>,
+      <span class="str">'memberCount'</span>: <span class="num">5</span>,
+      <span class="str">'myRole'</span>: <span class="str">'member'</span>,
+      <span class="str">'status'</span>: <span class="str">'active'</span>,
+      <span class="str">'updatedAt'</span>: <span class="str">'2026-01-14T10:00:00Z'</span>,
+    },
+  ],
+  <span class="str">'pagination'</span>: {<span class="str">'cursor'</span>: <span class="kw">null</span>, <span class="str">'hasMore'</span>: <span class="kw">false</span>},
+  <span class="str">'meta'</span>: {<span class="str">'timestamp'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>, <span class="str">'requestId'</span>: <span class="str">'req-mock-020'</span>},
+};
+
+<span class="kw">const</span> mockGroupDetailSuccess = {
+  <span class="str">'success'</span>: <span class="kw">true</span>,
+  <span class="str">'data'</span>: {
+    <span class="str">'id'</span>: <span class="str">'group-00000000-0000-0000-0000-000000000001'</span>,
+    <span class="str">'name'</span>: <span class="str">'ML 스터디'</span>,
+    <span class="str">'description'</span>: <span class="str">'머신러닝을 함께 공부하는 그룹'</span>,
+    <span class="str">'maxMembers'</span>: <span class="num">20</span>,
+    <span class="str">'joinType'</span>: <span class="str">'approval'</span>,
+    <span class="str">'status'</span>: <span class="str">'active'</span>,
+    <span class="str">'avatarUrl'</span>: <span class="str">'https://cdn.synapse.app/avatars/ml-study.png'</span>,
+    <span class="str">'memberCount'</span>: <span class="num">12</span>,
+    <span class="str">'myRole'</span>: <span class="str">'owner'</span>,
+    <span class="str">'createdAt'</span>: <span class="str">'2026-01-15T09:00:00Z'</span>,
+  },
+  <span class="str">'meta'</span>: {<span class="str">'timestamp'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>, <span class="str">'requestId'</span>: <span class="str">'req-mock-021'</span>},
+};
+
+<span class="kw">const</span> mockGroupCreateSuccess = {
+  <span class="str">'success'</span>: <span class="kw">true</span>,
+  <span class="str">'data'</span>: {
+    <span class="str">'id'</span>: <span class="str">'group-00000000-0000-0000-0000-000000000003'</span>,
+    <span class="str">'name'</span>: <span class="str">'새 스터디'</span>,
+    <span class="str">'memberCount'</span>: <span class="num">1</span>,
+    <span class="str">'myRole'</span>: <span class="str">'owner'</span>,
+    <span class="str">'status'</span>: <span class="str">'active'</span>,
+    <span class="str">'createdAt'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>,
+  },
+  <span class="str">'meta'</span>: {<span class="str">'timestamp'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>, <span class="str">'requestId'</span>: <span class="str">'req-mock-022'</span>},
+};
+
+<span class="kw">const</span> mockGroupJoinSuccess = {
+  <span class="str">'success'</span>: <span class="kw">true</span>,
+  <span class="str">'data'</span>: {<span class="str">'status'</span>: <span class="str">'pending'</span>, <span class="str">'message'</span>: <span class="str">'가입 신청이 접수되었습니다.'</span>},
+  <span class="str">'meta'</span>: {<span class="str">'timestamp'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>, <span class="str">'requestId'</span>: <span class="str">'req-mock-023'</span>},
+};
+
+<span class="kw">const</span> mockGroupMembersSuccess = {
+  <span class="str">'success'</span>: <span class="kw">true</span>,
+  <span class="str">'data'</span>: [
+    {<span class="str">'userId'</span>: <span class="str">'user-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'displayName'</span>: <span class="str">'홍길동'</span>, <span class="str">'role'</span>: <span class="str">'owner'</span>, <span class="str">'joinedAt'</span>: <span class="str">'2026-01-15T09:00:00Z'</span>},
+    {<span class="str">'userId'</span>: <span class="str">'user-00000000-0000-0000-0000-000000000002'</span>, <span class="str">'displayName'</span>: <span class="str">'김영희'</span>, <span class="str">'role'</span>: <span class="str">'member'</span>, <span class="str">'joinedAt'</span>: <span class="str">'2026-01-15T09:30:00Z'</span>},
+  ],
+  <span class="str">'meta'</span>: {<span class="str">'timestamp'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>, <span class="str">'requestId'</span>: <span class="str">'req-mock-024'</span>},
+};
+
+<span class="kw">const</span> mockSharedDecksListSuccess = {
+  <span class="str">'success'</span>: <span class="kw">true</span>,
+  <span class="str">'data'</span>: [
+    {<span class="str">'id'</span>: <span class="str">'sdeck-001'</span>, <span class="str">'deckTitle'</span>: <span class="str">'프로그래밍 기초 덱'</span>, <span class="str">'sharedByName'</span>: <span class="str">'홍길동'</span>, <span class="str">'copyCount'</span>: <span class="num">5</span>, <span class="str">'createdAt'</span>: <span class="str">'2026-01-15T11:00:00Z'</span>},
+  ],
+  <span class="str">'meta'</span>: {<span class="str">'timestamp'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>, <span class="str">'requestId'</span>: <span class="str">'req-mock-025'</span>},
+};
+
+<span class="kw">const</span> mockShareDeckSuccess = {
+  <span class="str">'success'</span>: <span class="kw">true</span>,
+  <span class="str">'data'</span>: {<span class="str">'sharedDeckId'</span>: <span class="str">'sdeck-002'</span>, <span class="str">'shareToken'</span>: <span class="str">'share_tok_003'</span>},
+  <span class="str">'meta'</span>: {<span class="str">'timestamp'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>, <span class="str">'requestId'</span>: <span class="str">'req-mock-026'</span>},
+};
+
+<span class="kw">const</span> mockShareNoteSuccess = {
+  <span class="str">'success'</span>: <span class="kw">true</span>,
+  <span class="str">'data'</span>: {<span class="str">'sharedNoteId'</span>: <span class="str">'snote-002'</span>, <span class="str">'shareToken'</span>: <span class="str">'share_tok_004'</span>},
+  <span class="str">'meta'</span>: {<span class="str">'timestamp'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>, <span class="str">'requestId'</span>: <span class="str">'req-mock-027'</span>},
+};
+
+<span class="kw">const</span> mockReportCreateSuccess = {
+  <span class="str">'success'</span>: <span class="kw">true</span>,
+  <span class="str">'data'</span>: {<span class="str">'reportId'</span>: <span class="str">'report-002'</span>, <span class="str">'status'</span>: <span class="str">'pending'</span>},
+  <span class="str">'meta'</span>: {<span class="str">'timestamp'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>, <span class="str">'requestId'</span>: <span class="str">'req-mock-028'</span>},
+};</code></pre>
+<h3 id="42-gamification">4.2 Gamification</h3>
+<pre class="code-block" data-lang="dart"><code><span class="cmt">// test/fixtures/responses/mock_engagement_gamification_responses.dart</span>
+
+<span class="kw">const</span> mockXpSummarySuccess = {
+  <span class="str">'success'</span>: <span class="kw">true</span>,
+  <span class="str">'data'</span>: {
+    <span class="str">'totalXp'</span>: <span class="num">490</span>,
+    <span class="str">'currentLevel'</span>: <span class="num">3</span>,
+    <span class="str">'levelTitle'</span>: <span class="str">'학습자'</span>,
+    <span class="str">'nextLevelXp'</span>: <span class="num">500</span>,
+    <span class="str">'xpToNextLevel'</span>: <span class="num">10</span>,
+  },
+  <span class="str">'meta'</span>: {<span class="str">'timestamp'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>, <span class="str">'requestId'</span>: <span class="str">'req-mock-030'</span>},
+};
+
+<span class="kw">const</span> mockBadgesListSuccess = {
+  <span class="str">'success'</span>: <span class="kw">true</span>,
+  <span class="str">'data'</span>: [
+    {<span class="str">'code'</span>: <span class="str">'STREAK_7'</span>, <span class="str">'name'</span>: <span class="str">'7일 전사'</span>, <span class="str">'iconUrl'</span>: <span class="str">'https://cdn.synapse.app/badges/streak7.png'</span>, <span class="str">'earned'</span>: <span class="kw">true</span>, <span class="str">'earnedAt'</span>: <span class="str">'2026-01-14T10:00:00Z'</span>},
+    {<span class="str">'code'</span>: <span class="str">'FIRST_REVIEW'</span>, <span class="str">'name'</span>: <span class="str">'첫 복습'</span>, <span class="str">'iconUrl'</span>: <span class="str">'https://cdn.synapse.app/badges/first-review.png'</span>, <span class="str">'earned'</span>: <span class="kw">true</span>, <span class="str">'earnedAt'</span>: <span class="str">'2026-01-10T10:00:00Z'</span>},
+    {<span class="str">'code'</span>: <span class="str">'STREAK_30'</span>, <span class="str">'name'</span>: <span class="str">'30일 전사'</span>, <span class="str">'iconUrl'</span>: <span class="str">'https://cdn.synapse.app/badges/streak30.png'</span>, <span class="str">'earned'</span>: <span class="kw">false</span>, <span class="str">'earnedAt'</span>: <span class="kw">null</span>},
+    {<span class="str">'code'</span>: <span class="str">'NOTE_100'</span>, <span class="str">'name'</span>: <span class="str">'노트 100개'</span>, <span class="str">'iconUrl'</span>: <span class="str">'https://cdn.synapse.app/badges/note100.png'</span>, <span class="str">'earned'</span>: <span class="kw">false</span>, <span class="str">'earnedAt'</span>: <span class="kw">null</span>},
+  ],
+  <span class="str">'meta'</span>: {<span class="str">'timestamp'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>, <span class="str">'requestId'</span>: <span class="str">'req-mock-031'</span>},
+};
+
+<span class="kw">const</span> mockMyBadgesSuccess = {
+  <span class="str">'success'</span>: <span class="kw">true</span>,
+  <span class="str">'data'</span>: [
+    {<span class="str">'code'</span>: <span class="str">'STREAK_7'</span>, <span class="str">'name'</span>: <span class="str">'7일 전사'</span>, <span class="str">'earnedAt'</span>: <span class="str">'2026-01-14T10:00:00Z'</span>},
+    {<span class="str">'code'</span>: <span class="str">'FIRST_REVIEW'</span>, <span class="str">'name'</span>: <span class="str">'첫 복습'</span>, <span class="str">'earnedAt'</span>: <span class="str">'2026-01-10T10:00:00Z'</span>},
+  ],
+  <span class="str">'meta'</span>: {<span class="str">'timestamp'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>, <span class="str">'requestId'</span>: <span class="str">'req-mock-032'</span>},
+};
+
+<span class="kw">const</span> mockLeaderboardSuccess = {
+  <span class="str">'success'</span>: <span class="kw">true</span>,
+  <span class="str">'data'</span>: [
+    {<span class="str">'rank'</span>: <span class="num">1</span>, <span class="str">'userId'</span>: <span class="str">'user-001'</span>, <span class="str">'displayName'</span>: <span class="str">'홍길동'</span>, <span class="str">'totalXp'</span>: <span class="num">500</span>, <span class="str">'level'</span>: <span class="num">4</span>},
+    {<span class="str">'rank'</span>: <span class="num">2</span>, <span class="str">'userId'</span>: <span class="str">'user-002'</span>, <span class="str">'displayName'</span>: <span class="str">'김영희'</span>, <span class="str">'totalXp'</span>: <span class="num">350</span>, <span class="str">'level'</span>: <span class="num">3</span>},
+    {<span class="str">'rank'</span>: <span class="num">3</span>, <span class="str">'userId'</span>: <span class="str">'user-004'</span>, <span class="str">'displayName'</span>: <span class="str">'이수진'</span>, <span class="str">'totalXp'</span>: <span class="num">200</span>, <span class="str">'level'</span>: <span class="num">2</span>},
+  ],
+  <span class="str">'meta'</span>: {<span class="str">'timestamp'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>, <span class="str">'requestId'</span>: <span class="str">'req-mock-033'</span>},
+};
+
+<span class="kw">const</span> mockLevelInfoSuccess = {
+  <span class="str">'success'</span>: <span class="kw">true</span>,
+  <span class="str">'data'</span>: {
+    <span class="str">'currentLevel'</span>: <span class="num">3</span>,
+    <span class="str">'title'</span>: <span class="str">'학습자'</span>,
+    <span class="str">'requiredXp'</span>: <span class="num">300</span>,
+    <span class="str">'nextLevel'</span>: <span class="num">4</span>,
+    <span class="str">'nextTitle'</span>: <span class="str">'학자'</span>,
+    <span class="str">'nextRequiredXp'</span>: <span class="num">500</span>,
+  },
+  <span class="str">'meta'</span>: {<span class="str">'timestamp'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>, <span class="str">'requestId'</span>: <span class="str">'req-mock-034'</span>},
+};
+
+<span class="kw">const</span> mockStreakSuccess = {
+  <span class="str">'success'</span>: <span class="kw">true</span>,
+  <span class="str">'data'</span>: {
+    <span class="str">'currentStreak'</span>: <span class="num">7</span>,
+    <span class="str">'longestStreak'</span>: <span class="num">14</span>,
+    <span class="str">'lastActivityDate'</span>: <span class="str">'2026-01-15'</span>,
+  },
+  <span class="str">'meta'</span>: {<span class="str">'timestamp'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>, <span class="str">'requestId'</span>: <span class="str">'req-mock-035'</span>},
+};</code></pre>
+<hr/>
+<h2 id="5-knowledge-서비스-mock-responses-10개">5. Knowledge 서비스 Mock Responses (10개)</h2>
+<pre class="code-block" data-lang="dart"><code><span class="cmt">// test/fixtures/responses/mock_knowledge_responses.dart</span>
+
+<span class="kw">const</span> mockNotesListSuccess = {
+  <span class="str">'success'</span>: <span class="kw">true</span>,
+  <span class="str">'data'</span>: [
+    {<span class="str">'id'</span>: <span class="str">'note-001'</span>, <span class="str">'title'</span>: <span class="str">'머신러닝 기초 정리'</span>, <span class="str">'wordCount'</span>: <span class="num">25</span>, <span class="str">'tags'</span>: [<span class="str">'머신러닝'</span>, <span class="str">'AI'</span>], <span class="str">'updatedAt'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>},
+    {<span class="str">'id'</span>: <span class="str">'note-002'</span>, <span class="str">'title'</span>: <span class="str">'딥러닝 기초'</span>, <span class="str">'wordCount'</span>: <span class="num">15</span>, <span class="str">'tags'</span>: [<span class="str">'딥러닝'</span>], <span class="str">'updatedAt'</span>: <span class="str">'2026-01-15T10:01:00Z'</span>},
+  ],
+  <span class="str">'pagination'</span>: {<span class="str">'cursor'</span>: <span class="kw">null</span>, <span class="str">'hasMore'</span>: <span class="kw">false</span>, <span class="str">'totalCount'</span>: <span class="num">2</span>},
+  <span class="str">'meta'</span>: {<span class="str">'timestamp'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>, <span class="str">'requestId'</span>: <span class="str">'req-mock-040'</span>},
+};
+
+<span class="kw">const</span> mockNoteDetailSuccess = {
+  <span class="str">'success'</span>: <span class="kw">true</span>,
+  <span class="str">'data'</span>: {
+    <span class="str">'id'</span>: <span class="str">'note-001'</span>,
+    <span class="str">'title'</span>: <span class="str">'머신러닝 기초 정리'</span>,
+    <span class="str">'content'</span>: <span class="str">'# 머신러닝\n\n[[딥러닝 기초]] 참조\n\n머신러닝은 인공지능의 한 분야로...'</span>,
+    <span class="str">'tags'</span>: [<span class="str">'머신러닝'</span>, <span class="str">'AI'</span>],
+    <span class="str">'wordCount'</span>: <span class="num">25</span>,
+    <span class="str">'links'</span>: [{<span class="str">'targetTitle'</span>: <span class="str">'딥러닝 기초'</span>, <span class="str">'targetId'</span>: <span class="str">'note-002'</span>}],
+    <span class="str">'createdAt'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>,
+    <span class="str">'updatedAt'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>,
+  },
+  <span class="str">'meta'</span>: {<span class="str">'timestamp'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>, <span class="str">'requestId'</span>: <span class="str">'req-mock-041'</span>},
+};
+
+<span class="kw">const</span> mockNoteCreateSuccess = {
+  <span class="str">'success'</span>: <span class="kw">true</span>,
+  <span class="str">'data'</span>: {
+    <span class="str">'id'</span>: <span class="str">'note-003'</span>,
+    <span class="str">'title'</span>: <span class="str">'새 노트'</span>,
+    <span class="str">'content'</span>: <span class="str">'# 새 노트 내용'</span>,
+    <span class="str">'tags'</span>: [],
+    <span class="str">'wordCount'</span>: <span class="num">3</span>,
+    <span class="str">'links'</span>: [],
+    <span class="str">'createdAt'</span>: <span class="str">'2026-01-15T10:05:00Z'</span>,
+  },
+  <span class="str">'meta'</span>: {<span class="str">'timestamp'</span>: <span class="str">'2026-01-15T10:05:00Z'</span>, <span class="str">'requestId'</span>: <span class="str">'req-mock-042'</span>},
+};
+
+<span class="kw">const</span> mockNoteUpdateSuccess = {
+  <span class="str">'success'</span>: <span class="kw">true</span>,
+  <span class="str">'data'</span>: {
+    <span class="str">'id'</span>: <span class="str">'note-001'</span>,
+    <span class="str">'title'</span>: <span class="str">'머신러닝 기초 정리 (수정)'</span>,
+    <span class="str">'version'</span>: <span class="num">2</span>,
+    <span class="str">'updatedAt'</span>: <span class="str">'2026-01-15T10:10:00Z'</span>,
+  },
+  <span class="str">'meta'</span>: {<span class="str">'timestamp'</span>: <span class="str">'2026-01-15T10:10:00Z'</span>, <span class="str">'requestId'</span>: <span class="str">'req-mock-043'</span>},
+};
+
+<span class="kw">const</span> mockNoteDeleteSuccess = {
+  <span class="str">'success'</span>: <span class="kw">true</span>,
+  <span class="str">'data'</span>: <span class="kw">null</span>,
+  <span class="str">'meta'</span>: {<span class="str">'timestamp'</span>: <span class="str">'2026-01-15T10:15:00Z'</span>, <span class="str">'requestId'</span>: <span class="str">'req-mock-044'</span>},
+};
+
+<span class="kw">const</span> mockNoteSearchSuccess = {
+  <span class="str">'success'</span>: <span class="kw">true</span>,
+  <span class="str">'data'</span>: [
+    {<span class="str">'id'</span>: <span class="str">'note-001'</span>, <span class="str">'title'</span>: <span class="str">'머신러닝 기초 정리'</span>, <span class="str">'snippet'</span>: <span class="str">'...머신러닝은 인공지능의 한 분야로...'</span>, <span class="str">'score'</span>: <span class="num">0.95</span>},
+  ],
+  <span class="str">'meta'</span>: {<span class="str">'timestamp'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>, <span class="str">'requestId'</span>: <span class="str">'req-mock-045'</span>},
+};
+
+<span class="kw">const</span> mockBacklinksSuccess = {
+  <span class="str">'success'</span>: <span class="kw">true</span>,
+  <span class="str">'data'</span>: [
+    {<span class="str">'noteId'</span>: <span class="str">'note-002'</span>, <span class="str">'title'</span>: <span class="str">'딥러닝 기초'</span>, <span class="str">'contextSnippet'</span>: <span class="str">'...[[머신러닝 기초 정리]] 의 하위 분야...'</span>},
+  ],
+  <span class="str">'meta'</span>: {<span class="str">'timestamp'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>, <span class="str">'requestId'</span>: <span class="str">'req-mock-046'</span>},
+};
+
+<span class="kw">const</span> mockVersionsSuccess = {
+  <span class="str">'success'</span>: <span class="kw">true</span>,
+  <span class="str">'data'</span>: [
+    {<span class="str">'version'</span>: <span class="num">2</span>, <span class="str">'title'</span>: <span class="str">'머신러닝 기초 정리 (수정)'</span>, <span class="str">'createdAt'</span>: <span class="str">'2026-01-15T10:10:00Z'</span>},
+    {<span class="str">'version'</span>: <span class="num">1</span>, <span class="str">'title'</span>: <span class="str">'머신러닝 기초 정리'</span>, <span class="str">'createdAt'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>},
+  ],
+  <span class="str">'meta'</span>: {<span class="str">'timestamp'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>, <span class="str">'requestId'</span>: <span class="str">'req-mock-047'</span>},
+};
+
+<span class="kw">const</span> mockGraphDataSuccess = {
+  <span class="str">'success'</span>: <span class="kw">true</span>,
+  <span class="str">'data'</span>: {
+    <span class="str">'nodes'</span>: [
+      {<span class="str">'id'</span>: <span class="str">'note-001'</span>, <span class="str">'title'</span>: <span class="str">'머신러닝 기초 정리'</span>, <span class="str">'linkCount'</span>: <span class="num">2</span>, <span class="str">'pageRank'</span>: <span class="num">0.85</span>},
+      {<span class="str">'id'</span>: <span class="str">'note-002'</span>, <span class="str">'title'</span>: <span class="str">'딥러닝 기초'</span>, <span class="str">'linkCount'</span>: <span class="num">1</span>, <span class="str">'pageRank'</span>: <span class="num">0.65</span>},
+    ],
+    <span class="str">'edges'</span>: [
+      {<span class="str">'source'</span>: <span class="str">'note-001'</span>, <span class="str">'target'</span>: <span class="str">'note-002'</span>, <span class="str">'type'</span>: <span class="str">'wikilink'</span>},
+      {<span class="str">'source'</span>: <span class="str">'note-002'</span>, <span class="str">'target'</span>: <span class="str">'note-001'</span>, <span class="str">'type'</span>: <span class="str">'wikilink'</span>},
+    ],
+  },
+  <span class="str">'meta'</span>: {<span class="str">'timestamp'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>, <span class="str">'requestId'</span>: <span class="str">'req-mock-048'</span>},
+};
+
+<span class="kw">const</span> mockGraphNeighborsSuccess = {
+  <span class="str">'success'</span>: <span class="kw">true</span>,
+  <span class="str">'data'</span>: {
+    <span class="str">'nodes'</span>: [
+      {<span class="str">'id'</span>: <span class="str">'note-002'</span>, <span class="str">'title'</span>: <span class="str">'딥러닝 기초'</span>, <span class="str">'linkCount'</span>: <span class="num">1</span>},
+    ],
+    <span class="str">'edges'</span>: [
+      {<span class="str">'source'</span>: <span class="str">'note-001'</span>, <span class="str">'target'</span>: <span class="str">'note-002'</span>, <span class="str">'type'</span>: <span class="str">'wikilink'</span>},
+    ],
+  },
+  <span class="str">'meta'</span>: {<span class="str">'timestamp'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>, <span class="str">'requestId'</span>: <span class="str">'req-mock-049'</span>},
+};</code></pre>
+<hr/>
+<h2 id="6-learning-서비스-mock-responses-12개">6. Learning 서비스 Mock Responses (12개)</h2>
+<pre class="code-block" data-lang="dart"><code><span class="cmt">// test/fixtures/responses/mock_learning_responses.dart</span>
+
+<span class="cmt">// --- Cards/Decks ---</span>
+
+<span class="kw">const</span> mockDeckListSuccess = {
+  <span class="str">'success'</span>: <span class="kw">true</span>,
+  <span class="str">'data'</span>: [
+    {<span class="str">'id'</span>: <span class="str">'deck-001'</span>, <span class="str">'name'</span>: <span class="str">'프로그래밍 기초 덱'</span>, <span class="str">'cardCount'</span>: <span class="num">42</span>, <span class="str">'dueCount'</span>: <span class="num">10</span>, <span class="str">'updatedAt'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>},
+    {<span class="str">'id'</span>: <span class="str">'deck-002'</span>, <span class="str">'name'</span>: <span class="str">'알고리즘 마스터 덱'</span>, <span class="str">'cardCount'</span>: <span class="num">0</span>, <span class="str">'dueCount'</span>: <span class="num">0</span>, <span class="str">'updatedAt'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>},
+  ],
+  <span class="str">'meta'</span>: {<span class="str">'timestamp'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>, <span class="str">'requestId'</span>: <span class="str">'req-mock-050'</span>},
+};
+
+<span class="kw">const</span> mockDeckCreateSuccess = {
+  <span class="str">'success'</span>: <span class="kw">true</span>,
+  <span class="str">'data'</span>: {<span class="str">'id'</span>: <span class="str">'deck-003'</span>, <span class="str">'name'</span>: <span class="str">'새 덱'</span>, <span class="str">'cardCount'</span>: <span class="num">0</span>, <span class="str">'createdAt'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>},
+  <span class="str">'meta'</span>: {<span class="str">'timestamp'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>, <span class="str">'requestId'</span>: <span class="str">'req-mock-051'</span>},
+};
+
+<span class="kw">const</span> mockCardsListSuccess = {
+  <span class="str">'success'</span>: <span class="kw">true</span>,
+  <span class="str">'data'</span>: [
+    {<span class="str">'id'</span>: <span class="str">'card-001'</span>, <span class="str">'cardType'</span>: <span class="str">'basic'</span>, <span class="str">'frontContent'</span>: <span class="str">'TCP와 UDP의 차이점은?'</span>, <span class="str">'backContent'</span>: <span class="str">'TCP는 연결 지향적...'</span>, <span class="str">'dueDate'</span>: <span class="str">'2026-01-15'</span>},
+    {<span class="str">'id'</span>: <span class="str">'card-002'</span>, <span class="str">'cardType'</span>: <span class="str">'cloze'</span>, <span class="str">'frontContent'</span>: <span class="str">'{{c1::정규화}}는 과적합을 방지하는 기법이다.'</span>, <span class="str">'backContent'</span>: <span class="str">''</span>, <span class="str">'dueDate'</span>: <span class="str">'2026-01-15'</span>},
+  ],
+  <span class="str">'meta'</span>: {<span class="str">'timestamp'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>, <span class="str">'requestId'</span>: <span class="str">'req-mock-052'</span>},
+};
+
+<span class="kw">const</span> mockCardCreateSuccess = {
+  <span class="str">'success'</span>: <span class="kw">true</span>,
+  <span class="str">'data'</span>: {<span class="str">'id'</span>: <span class="str">'card-004'</span>, <span class="str">'cardType'</span>: <span class="str">'basic'</span>, <span class="str">'frontContent'</span>: <span class="str">'새 질문'</span>, <span class="str">'backContent'</span>: <span class="str">'새 답변'</span>, <span class="str">'createdAt'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>},
+  <span class="str">'meta'</span>: {<span class="str">'timestamp'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>, <span class="str">'requestId'</span>: <span class="str">'req-mock-053'</span>},
+};
+
+<span class="kw">const</span> mockBatchCreateSuccess = {
+  <span class="str">'success'</span>: <span class="kw">true</span>,
+  <span class="str">'data'</span>: {<span class="str">'createdCount'</span>: <span class="num">5</span>, <span class="str">'cards'</span>: [{<span class="str">'id'</span>: <span class="str">'card-005'</span>}, {<span class="str">'id'</span>: <span class="str">'card-006'</span>}, {<span class="str">'id'</span>: <span class="str">'card-007'</span>}, {<span class="str">'id'</span>: <span class="str">'card-008'</span>}, {<span class="str">'id'</span>: <span class="str">'card-009'</span>}]},
+  <span class="str">'meta'</span>: {<span class="str">'timestamp'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>, <span class="str">'requestId'</span>: <span class="str">'req-mock-054'</span>},
+};
+
+<span class="cmt">// --- SRS/Reviews ---</span>
+
+<span class="kw">const</span> mockReviewQueueSuccess = {
+  <span class="str">'success'</span>: <span class="kw">true</span>,
+  <span class="str">'data'</span>: {
+    <span class="str">'totalDue'</span>: <span class="num">25</span>,
+    <span class="str">'newCards'</span>: <span class="num">5</span>,
+    <span class="str">'reviewCards'</span>: <span class="num">15</span>,
+    <span class="str">'learningCards'</span>: <span class="num">5</span>,
+    <span class="str">'cards'</span>: [
+      {<span class="str">'cardId'</span>: <span class="str">'card-001'</span>, <span class="str">'cardType'</span>: <span class="str">'basic'</span>, <span class="str">'frontContent'</span>: <span class="str">'TCP와 UDP의 차이점은?'</span>, <span class="str">'deckName'</span>: <span class="str">'프로그래밍 기초'</span>, <span class="str">'status'</span>: <span class="str">'review'</span>},
+      {<span class="str">'cardId'</span>: <span class="str">'card-002'</span>, <span class="str">'cardType'</span>: <span class="str">'cloze'</span>, <span class="str">'frontContent'</span>: <span class="str">'{{c1::정규화}}는...'</span>, <span class="str">'deckName'</span>: <span class="str">'프로그래밍 기초'</span>, <span class="str">'status'</span>: <span class="str">'learning'</span>},
+    ],
+  },
+  <span class="str">'meta'</span>: {<span class="str">'timestamp'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>, <span class="str">'requestId'</span>: <span class="str">'req-mock-055'</span>},
+};
+
+<span class="kw">const</span> mockSessionStartSuccess = {
+  <span class="str">'success'</span>: <span class="kw">true</span>,
+  <span class="str">'data'</span>: {
+    <span class="str">'sessionId'</span>: <span class="str">'session-001'</span>,
+    <span class="str">'totalCards'</span>: <span class="num">25</span>,
+    <span class="str">'startedAt'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>,
+  },
+  <span class="str">'meta'</span>: {<span class="str">'timestamp'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>, <span class="str">'requestId'</span>: <span class="str">'req-mock-056'</span>},
+};
+
+<span class="kw">const</span> mockSubmitRatingSuccess = {
+  <span class="str">'success'</span>: <span class="kw">true</span>,
+  <span class="str">'data'</span>: {
+    <span class="str">'nextInterval'</span>: <span class="num">7</span>,
+    <span class="str">'newEF'</span>: <span class="num">2.6</span>,
+    <span class="str">'nextDueDate'</span>: <span class="str">'2026-01-22'</span>,
+    <span class="str">'sessionProgress'</span>: {<span class="str">'completed'</span>: <span class="num">1</span>, <span class="str">'total'</span>: <span class="num">25</span>},
+  },
+  <span class="str">'meta'</span>: {<span class="str">'timestamp'</span>: <span class="str">'2026-01-15T10:01:00Z'</span>, <span class="str">'requestId'</span>: <span class="str">'req-mock-057'</span>},
+};
+
+<span class="kw">const</span> mockSessionCompleteSuccess = {
+  <span class="str">'success'</span>: <span class="kw">true</span>,
+  <span class="str">'data'</span>: {
+    <span class="str">'sessionId'</span>: <span class="str">'session-001'</span>,
+    <span class="str">'totalReviewed'</span>: <span class="num">25</span>,
+    <span class="str">'correctRate'</span>: <span class="num">0.8</span>,
+    <span class="str">'duration'</span>: <span class="num">1200</span>,
+    <span class="str">'xpEarned'</span>: <span class="num">250</span>,
+  },
+  <span class="str">'meta'</span>: {<span class="str">'timestamp'</span>: <span class="str">'2026-01-15T10:20:00Z'</span>, <span class="str">'requestId'</span>: <span class="str">'req-mock-058'</span>},
+};
+
+<span class="cmt">// --- AI ---</span>
+
+<span class="kw">const</span> mockAiGenerateCardsSuccess = {
+  <span class="str">'success'</span>: <span class="kw">true</span>,
+  <span class="str">'data'</span>: {
+    <span class="str">'cards'</span>: [
+      {<span class="str">'frontContent'</span>: <span class="str">'머신러닝에서 과적합이란?'</span>, <span class="str">'backContent'</span>: <span class="str">'훈련 데이터에 과도하게 맞춰져...'</span>, <span class="str">'confidence'</span>: <span class="num">0.95</span>},
+      {<span class="str">'frontContent'</span>: <span class="str">'과적합 방지 기법 3가지는?'</span>, <span class="str">'backContent'</span>: <span class="str">'정규화, 드롭아웃, 교차 검증'</span>, <span class="str">'confidence'</span>: <span class="num">0.92</span>},
+    ],
+    <span class="str">'usage'</span>: {<span class="str">'inputTokens'</span>: <span class="num">500</span>, <span class="str">'outputTokens'</span>: <span class="num">300</span>},
+  },
+  <span class="str">'meta'</span>: {<span class="str">'timestamp'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>, <span class="str">'requestId'</span>: <span class="str">'req-mock-059'</span>},
+};
+
+<span class="kw">const</span> mockSemanticSearchSuccess = {
+  <span class="str">'success'</span>: <span class="kw">true</span>,
+  <span class="str">'data'</span>: {
+    <span class="str">'results'</span>: [
+      {<span class="str">'noteId'</span>: <span class="str">'note-001'</span>, <span class="str">'title'</span>: <span class="str">'정규화 기법'</span>, <span class="str">'chunkText'</span>: <span class="str">'과적합을 방지하기 위해...'</span>, <span class="str">'score'</span>: <span class="num">0.89</span>},
+    ],
+  },
+  <span class="str">'meta'</span>: {<span class="str">'timestamp'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>, <span class="str">'requestId'</span>: <span class="str">'req-mock-060'</span>},
+};
+
+<span class="kw">const</span> mockQaStreamSuccess = {
+  <span class="str">'success'</span>: <span class="kw">true</span>,
+  <span class="str">'data'</span>: {
+    <span class="str">'answer'</span>: <span class="str">'노트에 따르면 정규화 기법은 모델의 복잡도를 제한하여 과적합을 방지하는 기술입니다.'</span>,
+    <span class="str">'sources'</span>: [{<span class="str">'noteId'</span>: <span class="str">'note-001'</span>, <span class="str">'title'</span>: <span class="str">'머신러닝 기초 정리'</span>}],
+    <span class="str">'usage'</span>: {<span class="str">'inputTokens'</span>: <span class="num">800</span>, <span class="str">'outputTokens'</span>: <span class="num">200</span>},
+  },
+  <span class="str">'meta'</span>: {<span class="str">'timestamp'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>, <span class="str">'requestId'</span>: <span class="str">'req-mock-061'</span>},
+};</code></pre>
+<hr/>
+<h2 id="7-에러-응답-mock-공통">7. 에러 응답 Mock (공통)</h2>
+<pre class="code-block" data-lang="dart"><code><span class="cmt">// test/fixtures/responses/mock_error_responses.dart</span>
+
+<span class="kw">const</span> mockError400Validation = {
+  <span class="str">'success'</span>: <span class="kw">false</span>,
+  <span class="str">'error'</span>: {
+    <span class="str">'code'</span>: <span class="str">'VALIDATION_ERROR'</span>,
+    <span class="str">'message'</span>: <span class="str">'입력값이 유효하지 않습니다.'</span>,
+    <span class="str">'details'</span>: [
+      {<span class="str">'field'</span>: <span class="str">'email'</span>, <span class="str">'message'</span>: <span class="str">'올바른 이메일 형식이 아닙니다.'</span>},
+    ],
+  },
+  <span class="str">'meta'</span>: {<span class="str">'timestamp'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>, <span class="str">'requestId'</span>: <span class="str">'req-mock-err-001'</span>},
+};
+
+<span class="kw">const</span> mockError401Unauthorized = {
+  <span class="str">'success'</span>: <span class="kw">false</span>,
+  <span class="str">'error'</span>: {<span class="str">'code'</span>: <span class="str">'UNAUTHORIZED'</span>, <span class="str">'message'</span>: <span class="str">'인증이 필요합니다.'</span>, <span class="str">'details'</span>: []},
+  <span class="str">'meta'</span>: {<span class="str">'timestamp'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>, <span class="str">'requestId'</span>: <span class="str">'req-mock-err-002'</span>},
+};
+
+<span class="kw">const</span> mockError403Forbidden = {
+  <span class="str">'success'</span>: <span class="kw">false</span>,
+  <span class="str">'error'</span>: {<span class="str">'code'</span>: <span class="str">'FORBIDDEN'</span>, <span class="str">'message'</span>: <span class="str">'권한이 없습니다.'</span>, <span class="str">'details'</span>: []},
+  <span class="str">'meta'</span>: {<span class="str">'timestamp'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>, <span class="str">'requestId'</span>: <span class="str">'req-mock-err-003'</span>},
+};
+
+<span class="kw">const</span> mockError404NotFound = {
+  <span class="str">'success'</span>: <span class="kw">false</span>,
+  <span class="str">'error'</span>: {<span class="str">'code'</span>: <span class="str">'NOT_FOUND'</span>, <span class="str">'message'</span>: <span class="str">'요청한 리소스를 찾을 수 없습니다.'</span>, <span class="str">'details'</span>: []},
+  <span class="str">'meta'</span>: {<span class="str">'timestamp'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>, <span class="str">'requestId'</span>: <span class="str">'req-mock-err-004'</span>},
+};
+
+<span class="kw">const</span> mockError429RateLimit = {
+  <span class="str">'success'</span>: <span class="kw">false</span>,
+  <span class="str">'error'</span>: {<span class="str">'code'</span>: <span class="str">'RATE_LIMIT_EXCEEDED'</span>, <span class="str">'message'</span>: <span class="str">'요청 한도를 초과했습니다.'</span>, <span class="str">'details'</span>: []},
+  <span class="str">'meta'</span>: {<span class="str">'timestamp'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>, <span class="str">'requestId'</span>: <span class="str">'req-mock-err-005'</span>},
+};
+
+<span class="kw">const</span> mockError500ServerError = {
+  <span class="str">'success'</span>: <span class="kw">false</span>,
+  <span class="str">'error'</span>: {<span class="str">'code'</span>: <span class="str">'INTERNAL_ERROR'</span>, <span class="str">'message'</span>: <span class="str">'서버 내부 오류가 발생했습니다.'</span>, <span class="str">'details'</span>: []},
+  <span class="str">'meta'</span>: {<span class="str">'timestamp'</span>: <span class="str">'2026-01-15T10:00:00Z'</span>, <span class="str">'requestId'</span>: <span class="str">'req-mock-err-006'</span>},
+};</code></pre>
+<hr/>
+<h2 id="8-dart-mockito-패턴">8. Dart Mockito 패턴</h2>
+<h3 id="81-repository-mock">8.1 Repository Mock</h3>
+<pre class="code-block" data-lang="dart"><code><span class="cmt">// test/mocks/mock_repositories.dart</span>
+
+<span class="kw">import</span> <span class="str">'package:mockito/annotations.dart'</span>;
+<span class="kw">import</span> <span class="str">'package:synapse/services/platform/auth_repository.dart'</span>;
+<span class="kw">import</span> <span class="str">'package:synapse/services/knowledge/note_repository.dart'</span>;
+<span class="kw">import</span> <span class="str">'package:synapse/services/learning/card_repository.dart'</span>;
+<span class="kw">import</span> <span class="str">'package:synapse/services/engagement/community_repository.dart'</span>;
+
+<span class="anno">@GenerateMocks</span>([
+  AuthRepository,
+  NoteRepository,
+  CardRepository,
+  CommunityRepository,
+])
+<span class="kw">void</span> main() {}</code></pre>
+<pre class="code-block" data-lang="bash"><code><span class="cmt"># Mock 생성</span>
+dart run build_runner build --delete-conflicting-outputs</code></pre>
+<h3 id="82-riverpod-provider-mock">8.2 Riverpod Provider Mock</h3>
+<pre class="code-block" data-lang="dart"><code><span class="cmt">// test/helpers/provider_overrides.dart</span>
+
+<span class="kw">import</span> <span class="str">'package:flutter_riverpod/flutter_riverpod.dart'</span>;
+<span class="kw">import</span> <span class="str">'package:mockito/mockito.dart'</span>;
+
+<span class="type">List</span>&lt;Override&gt; createMockOverrides({
+  MockAuthRepository? authRepo,
+  MockNoteRepository? noteRepo,
+  MockCardRepository? cardRepo,
+}) {
+  <span class="kw">return</span> [
+    <span class="kw">if</span> (authRepo != <span class="kw">null</span>)
+      authRepositoryProvider.overrideWithValue(authRepo),
+    <span class="kw">if</span> (noteRepo != <span class="kw">null</span>)
+      noteRepositoryProvider.overrideWithValue(noteRepo),
+    <span class="kw">if</span> (cardRepo != <span class="kw">null</span>)
+      cardRepositoryProvider.overrideWithValue(cardRepo),
+  ];
+}</code></pre>
+<h3 id="83-widget-테스트-예시">8.3 Widget 테스트 예시</h3>
+<pre class="code-block" data-lang="dart"><code><span class="cmt">// test/widgets/review_screen_test.dart</span>
+
+<span class="kw">import</span> <span class="str">'package:flutter_test/flutter_test.dart'</span>;
+<span class="kw">import</span> <span class="str">'package:flutter_riverpod/flutter_riverpod.dart'</span>;
+<span class="kw">import</span> <span class="str">'package:mockito/mockito.dart'</span>;
+
+<span class="kw">void</span> main() {
+  late MockCardRepository mockCardRepo;
+
+  setUp(() {
+    mockCardRepo = MockCardRepository();
+  });
+
+  testWidgets(<span class="str">'ReviewScreen shows card count'</span>, (tester) <span class="kw">async</span> {
+    <span class="kw">when</span>(mockCardRepo.getReviewQueue()).thenAnswer(
+      (_) <span class="kw">async</span> =&gt; ReviewQueue.fromJson(mockReviewQueueSuccess[<span class="str">'data'</span>]),
+    );
+
+    <span class="kw">await</span> tester.pumpWidget(
+      ProviderScope(
+        overrides: createMockOverrides(cardRepo: mockCardRepo),
+        child: <span class="kw">const</span> MaterialApp(home: ReviewScreen()),
+      ),
+    );
+
+    <span class="kw">await</span> tester.pumpAndSettle();
+
+    expect(find.text(<span class="str">'25'</span>), findsOneWidget);  <span class="cmt">// totalDue</span>
+    expect(find.text(<span class="str">'프로그래밍 기초'</span>), findsOneWidget);  <span class="cmt">// deckName</span>
+  });
+}</code></pre>
+<hr/>
+<h2 id="9-golden-test-데이터셋">9. Golden Test 데이터셋</h2>
+<pre class="code-block" data-lang="dart"><code><span class="cmt">// test/fixtures/golden_data.dart</span>
+
+<span class="cmt">/// 고정 사용자 프로필 (Golden test용)</span>
+<span class="kw">const</span> goldenUser = {
+  <span class="str">'id'</span>: <span class="str">'user-00000000-0000-0000-0000-000000000001'</span>,
+  <span class="str">'email'</span>: <span class="str">'user1@example.com'</span>,
+  <span class="str">'displayName'</span>: <span class="str">'홍길동'</span>,
+  <span class="str">'avatarUrl'</span>: <span class="kw">null</span>,
+  <span class="str">'plan'</span>: <span class="str">'pro'</span>,
+  <span class="str">'level'</span>: <span class="num">3</span>,
+  <span class="str">'levelTitle'</span>: <span class="str">'학습자'</span>,
+  <span class="str">'totalXp'</span>: <span class="num">490</span>,
+  <span class="str">'currentStreak'</span>: <span class="num">7</span>,
+};
+
+<span class="cmt">/// 고정 노트 목록 (Golden test용)</span>
+<span class="kw">const</span> goldenNotes = [
+  {<span class="str">'id'</span>: <span class="str">'note-001'</span>, <span class="str">'title'</span>: <span class="str">'머신러닝 기초 정리'</span>, <span class="str">'wordCount'</span>: <span class="num">25</span>, <span class="str">'tags'</span>: [<span class="str">'머신러닝'</span>, <span class="str">'AI'</span>]},
+  {<span class="str">'id'</span>: <span class="str">'note-002'</span>, <span class="str">'title'</span>: <span class="str">'딥러닝 기초'</span>, <span class="str">'wordCount'</span>: <span class="num">15</span>, <span class="str">'tags'</span>: [<span class="str">'딥러닝'</span>]},
+  {<span class="str">'id'</span>: <span class="str">'note-003'</span>, <span class="str">'title'</span>: <span class="str">'딥러닝 완전 정복 가이드'</span>, <span class="str">'wordCount'</span>: <span class="num">10000</span>, <span class="str">'tags'</span>: []},
+];
+
+<span class="cmt">/// 고정 덱 목록 (Golden test용)</span>
+<span class="kw">const</span> goldenDecks = [
+  {<span class="str">'id'</span>: <span class="str">'deck-001'</span>, <span class="str">'name'</span>: <span class="str">'프로그래밍 기초 덱'</span>, <span class="str">'cardCount'</span>: <span class="num">42</span>, <span class="str">'dueCount'</span>: <span class="num">25</span>},
+  {<span class="str">'id'</span>: <span class="str">'deck-002'</span>, <span class="str">'name'</span>: <span class="str">'알고리즘 마스터 덱'</span>, <span class="str">'cardCount'</span>: <span class="num">0</span>, <span class="str">'dueCount'</span>: <span class="num">0</span>},
+];</code></pre>
+
+  </main>
+  <footer class="doc-footer">
+    <span>Synapse · Mocking Docs v1.0 · 2026-05-14</span>
+    <a href="https://github.com/team-project-final/documents/blob/main/docs/mocking/05-frontend-mocking.md" target="_blank" rel="noopener">edit on GitHub →</a>
+  </footer>
+</div>
+</body>
+</html>

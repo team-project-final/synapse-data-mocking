@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>01 · Platform Service — Synapse Mocking Docs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="doc-style.css" />
+</head>
+<body>
+<div class="doc-shell">
+  <header class="doc-header">
+    <div class="doc-header-meta">
+      <span class="doc-idx">DOC 01</span>
+      <span class="doc-en">platform-svc</span>
+    </div>
+    <h1 class="doc-h1">Platform Service</h1>
+    <div class="doc-links">
+      <a class="doc-link" href="https://github.com/team-project-final/documents/blob/main/docs/mocking/01-platform-svc-mocking.md" target="_blank" rel="noopener">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        GitHub 원본 보기
+      </a>
+      <a class="doc-link" href="https://github.com/team-project-final/documents/raw/main/docs/mocking/01-platform-svc-mocking.md" target="_blank" rel="noopener">📥 raw .md 다운로드</a>
+    </div>
+  </header>
+  <main class="doc-body">
+<h1 id="platform-service-목킹-정의서">Platform Service 목킹 정의서</h1>
+<blockquote><strong>프로젝트</strong>: Synapse — 통합 학습-지식 그래프 SaaS <strong>서비스</strong>: synapse-platform-svc <strong>Owner</strong>: <code>@platform-owner</code> (김해준) <strong>모듈</strong>: auth, audit, billing, notification <strong>작성일</strong>: 2026-05-14</blockquote>
+<hr/>
+<h2 id="1-서비스-의존성-맵">1. 서비스 의존성 맵</h2>
+<div class="mermaid-block"><div class="mermaid-label">mermaid diagram</div><pre class="code-block"><code>graph LR
+    subgraph platform-svc
+        AUTH[auth 모듈]
+        AUDIT[audit 모듈]
+        BILLING[billing 모듈]
+        NOTIF[notification 모듈]
+    end
+
+    subgraph External APIs
+        GOOGLE[Google OAuth]
+        GITHUB[GitHub OAuth]
+        APPLE[Apple OAuth]
+        MS[Microsoft OAuth]
+        STRIPE[Stripe API]
+        FCM_API[FCM / APNs]
+        SES[AWS SES]
+    end
+
+    subgraph Infrastructure
+        PG[(PostgreSQL)]
+        REDIS[(Redis)]
+        KAFKA[Kafka]
+    end
+
+    AUTH --&gt; GOOGLE
+    AUTH --&gt; GITHUB
+    AUTH --&gt; APPLE
+    AUTH --&gt; MS
+    AUTH --&gt; REDIS
+    AUTH --&gt; PG
+    AUTH --&gt;|user.registered| KAFKA
+
+    AUDIT --&gt;|Consumer| KAFKA
+    AUDIT --&gt; PG
+
+    BILLING --&gt; STRIPE
+    BILLING --&gt; PG
+    BILLING --&gt;|billing.subscription.changed| KAFKA
+
+    NOTIF --&gt;|Consumer| KAFKA
+    NOTIF --&gt; FCM_API
+    NOTIF --&gt; SES
+    NOTIF --&gt; REDIS
+    NOTIF --&gt; PG</code></pre></div>
+<hr/>
+<h2 id="2-auth-모듈">2. auth 모듈</h2>
+<h3 id="21-목킹-인터페이스-목록">2.1 목킹 인터페이스 목록</h3>
+<table class="md-table"><thead><tr><th>#</th><th>목킹 대상</th><th>통신 방식</th><th>방향</th><th>도구</th></tr></thead><tbody><tr><td>1</td><td>Google OAuth (token + userinfo)</td><td>REST</td><td>Outbound</td><td>WireMock</td></tr><tr><td>2</td><td>GitHub OAuth (token + userinfo)</td><td>REST</td><td>Outbound</td><td>WireMock</td></tr><tr><td>3</td><td>Apple OAuth (token + id_token)</td><td>REST</td><td>Outbound</td><td>WireMock</td></tr><tr><td>4</td><td>Microsoft OAuth (token + userinfo)</td><td>REST</td><td>Outbound</td><td>WireMock</td></tr><tr><td>5</td><td>Redis (refresh token 저장/조회/삭제)</td><td>Redis Protocol</td><td>Outbound</td><td>Testcontainers</td></tr><tr><td>6</td><td>PostgreSQL (users, tenants)</td><td>SQL</td><td>Outbound</td><td>Testcontainers</td></tr><tr><td>7</td><td>Kafka Producer (<code>user.registered</code>)</td><td>Kafka</td><td>Outbound</td><td>EmbeddedKafka</td></tr></tbody></table>
+<h3 id="22-oauth-provider-mock">2.2 OAuth Provider Mock</h3>
+<blockquote>전체 WireMock 매핑은 <code>07-external-api-mocking.md</code> §2 참조.</blockquote>
+<p><strong>application-test.yml (auth 섹션):</strong></p>
+<pre class="code-block" data-lang="yaml"><code><span class="key">oauth</span>:
+  <span class="key">google</span>:
+    <span class="key">client-id</span>: google_test_client_id
+    <span class="key">client-secret</span>: google_test_client_secret
+    <span class="key">token-url</span>: http://localhost:${wiremock.server.port}/google/token
+    <span class="key">userinfo-url</span>: http://localhost:${wiremock.server.port}/google/userinfo
+    <span class="key">redirect-uri</span>: http://localhost:<span class="num">8080</span>/auth/oauth/google/callback
+  <span class="key">github</span>:
+    <span class="key">client-id</span>: github_test_client_id
+    <span class="key">client-secret</span>: github_test_client_secret
+    <span class="key">token-url</span>: http://localhost:${wiremock.server.port}/github/token
+    <span class="key">userinfo-url</span>: http://localhost:${wiremock.server.port}/github/userinfo
+    <span class="key">redirect-uri</span>: http://localhost:<span class="num">8080</span>/auth/oauth/github/callback
+  <span class="key">apple</span>:
+    <span class="key">client-id</span>: com.synapse.app
+    <span class="key">team-id</span>: TEAM_MOCK
+    <span class="key">key-id</span>: KEY_MOCK
+    <span class="key">token-url</span>: http://localhost:${wiremock.server.port}/apple/token
+    <span class="key">redirect-uri</span>: http://localhost:<span class="num">8080</span>/auth/oauth/apple/callback
+  <span class="key">microsoft</span>:
+    <span class="key">client-id</span>: ms_test_client_id
+    <span class="key">client-secret</span>: ms_test_client_secret
+    <span class="key">token-url</span>: http://localhost:${wiremock.server.port}/microsoft/token
+    <span class="key">userinfo-url</span>: http://localhost:${wiremock.server.port}/microsoft/userinfo
+    <span class="key">redirect-uri</span>: http://localhost:<span class="num">8080</span>/auth/oauth/microsoft/callback</code></pre>
+<h3 id="23-jwt-테스트-유틸">2.3 JWT 테스트 유틸</h3>
+<pre class="code-block" data-lang="java"><code><span class="kw">public</span> <span class="kw">class</span> JwtTestFactory {
+
+    <span class="kw">private</span> <span class="kw">static</span> <span class="kw">final</span> <span class="type">String</span> SECRET = <span class="str">"test-jwt-secret-key-must-be-at-least-256-bits-long-for-hs256"</span>;
+
+    <span class="kw">public</span> <span class="kw">static</span> <span class="type">String</span> createAccessToken(<span class="type">String</span> userId, <span class="type">String</span> tenantId) {
+        <span class="kw">return</span> createAccessToken(userId, tenantId, <span class="str">"user"</span>, <span class="type">Duration</span>.ofMinutes(<span class="num">15</span>));
+    }
+
+    <span class="kw">public</span> <span class="kw">static</span> <span class="type">String</span> createAccessToken(
+            <span class="type">String</span> userId, <span class="type">String</span> tenantId, <span class="type">String</span> role, <span class="type">Duration</span> expiry) {
+        <span class="type">Instant</span> now = <span class="type">Instant</span>.parse(<span class="str">"2026-01-15T10:00:00Z"</span>);
+        <span class="kw">return</span> Jwts.builder()
+            .subject(userId)
+            .claim(<span class="str">"tenantId"</span>, tenantId)
+            .claim(<span class="str">"role"</span>, role)
+            .claim(<span class="str">"email"</span>, <span class="str">"user1@example.com"</span>)
+            .issuedAt(Date.from(now))
+            .expiration(Date.from(now.plus(expiry)))
+            .signWith(Keys.hmacShaKeyFor(SECRET.getBytes()))
+            .compact();
+    }
+
+    <span class="kw">public</span> <span class="kw">static</span> <span class="type">String</span> createExpiredToken(<span class="type">String</span> userId, <span class="type">String</span> tenantId) {
+        <span class="type">Instant</span> past = <span class="type">Instant</span>.parse(<span class="str">"2026-01-14T10:00:00Z"</span>);
+        <span class="kw">return</span> Jwts.builder()
+            .subject(userId)
+            .claim(<span class="str">"tenantId"</span>, tenantId)
+            .issuedAt(Date.from(past))
+            .expiration(Date.from(past.plus(<span class="type">Duration</span>.ofMinutes(<span class="num">15</span>))))
+            .signWith(Keys.hmacShaKeyFor(SECRET.getBytes()))
+            .compact();
+    }
+
+    <span class="cmt">// 기본 사용자 토큰</span>
+    <span class="kw">public</span> <span class="kw">static</span> <span class="kw">final</span> <span class="type">String</span> USER1_TOKEN = createAccessToken(
+        <span class="str">"user-00000000-0000-0000-0000-000000000001"</span>,
+        <span class="str">"tenant-00000000-0000-0000-0000-000000000001"</span>
+    );
+
+    <span class="cmt">// Admin 토큰</span>
+    <span class="kw">public</span> <span class="kw">static</span> <span class="kw">final</span> <span class="type">String</span> ADMIN_TOKEN = createAccessToken(
+        <span class="str">"user-00000000-0000-0000-0000-000000000005"</span>,
+        <span class="str">"tenant-00000000-0000-0000-0000-000000000001"</span>,
+        <span class="str">"admin"</span>,
+        <span class="type">Duration</span>.ofMinutes(<span class="num">15</span>)
+    );
+}</code></pre>
+<h3 id="24-mfa-totp-mock">2.4 MFA TOTP Mock</h3>
+<pre class="code-block" data-lang="java"><code><span class="kw">public</span> <span class="kw">class</span> TotpTestHelper {
+
+    <span class="cmt">// 고정 TOTP secret (테스트용)</span>
+    <span class="kw">public</span> <span class="kw">static</span> <span class="kw">final</span> <span class="type">String</span> TEST_TOTP_SECRET = <span class="str">"JBSWY3DPEHPK3PXP"</span>;
+
+    <span class="cmt">/**
+     * 고정 시각(2026-01-15T10:00:00Z) 기준 TOTP 코드 생성
+     */</span>
+    <span class="kw">public</span> <span class="kw">static</span> <span class="type">String</span> generateCode() {
+        <span class="type">long</span> timeStep = <span class="type">Instant</span>.parse(<span class="str">"2026-01-15T10:00:00Z"</span>).getEpochSecond() / <span class="num">30</span>;
+        <span class="kw">return</span> TOTPGenerator.generateTOTP(TEST_TOTP_SECRET, timeStep, <span class="num">6</span>);
+    }
+
+    <span class="cmt">/**
+     * 만료된 TOTP 코드 (1분 전 시간 기준)
+     */</span>
+    <span class="kw">public</span> <span class="kw">static</span> <span class="type">String</span> generateExpiredCode() {
+        <span class="type">long</span> timeStep = <span class="type">Instant</span>.parse(<span class="str">"2026-01-15T09:59:00Z"</span>).getEpochSecond() / <span class="num">30</span>;
+        <span class="kw">return</span> TOTPGenerator.generateTOTP(TEST_TOTP_SECRET, timeStep, <span class="num">6</span>);
+    }
+}</code></pre>
+<h3 id="25-redis-testcontainers-refresh-token">2.5 Redis Testcontainers (Refresh Token)</h3>
+<pre class="code-block" data-lang="java"><code><span class="anno">@Container</span>
+<span class="kw">static</span> GenericContainer&lt;?&gt; redis = <span class="kw">new</span> GenericContainer&lt;&gt;(
+    DockerImageName.parse(<span class="str">"redis:7-alpine"</span>)
+).withExposedPorts(<span class="num">6379</span>);
+
+<span class="cmt">// Refresh Token 저장 검증</span>
+<span class="anno">@Test</span>
+<span class="kw">void</span> login_shouldStoreRefreshTokenInRedis() {
+    <span class="cmt">// given</span>
+    <span class="type">String</span> requestBody = <span class="str">""</span>"
+        {<span class="str">"email"</span>: <span class="str">"user1@example.com"</span>, <span class="str">"password"</span>: <span class="str">"SecureP@ss1!"</span>}
+        <span class="str">""</span>";
+
+    <span class="cmt">// when</span>
+    mockMvc.perform(post(<span class="str">"/auth/login"</span>)
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(requestBody))
+        .andExpect(status().isOk())
+        .andExpect(cookie().exists(<span class="str">"refresh_token"</span>));
+
+    <span class="cmt">// then — Redis에 refresh token이 저장되었는지 확인</span>
+    Set&lt;<span class="type">String</span>&gt; keys = redisTemplate.keys(<span class="str">"refresh_token:user-*"</span>);
+    assertThat(keys).hasSize(<span class="num">1</span>);
+}</code></pre>
+<h3 id="26-kafka-producer-검증-userregistered">2.6 Kafka Producer 검증 (<code>user.registered</code>)</h3>
+<pre class="code-block" data-lang="java"><code><span class="anno">@Test</span>
+<span class="kw">void</span> signup_shouldPublishUserRegisteredEvent() {
+    <span class="cmt">// given</span>
+    <span class="type">String</span> requestBody = <span class="str">""</span>"
+        {
+            <span class="str">"email"</span>: <span class="str">"newuser@example.com"</span>,
+            <span class="str">"password"</span>: <span class="str">"SecureP@ss1!"</span>,
+            <span class="str">"displayName"</span>: <span class="str">"신규사용자"</span>,
+            <span class="str">"locale"</span>: <span class="str">"ko"</span>
+        }
+        <span class="str">""</span>";
+
+    <span class="cmt">// when</span>
+    mockMvc.perform(post(<span class="str">"/auth/signup"</span>)
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(requestBody))
+        .andExpect(status().isCreated());
+
+    <span class="cmt">// then — Kafka에 user.registered 이벤트 발행 검증</span>
+    <span class="type">List</span>&lt;<span class="type">ConsumerRecord</span>&lt;<span class="type">String</span>, Object&gt;&gt; records =
+        kafkaTestHelper.consumeMessages(<span class="str">"user.registered"</span>, <span class="num">1</span>, <span class="type">Duration</span>.ofSeconds(<span class="num">5</span>));
+
+    assertThat(records).hasSize(<span class="num">1</span>);
+    <span class="cmt">// CloudEvents 포맷 검증</span>
+    Object event = records.<span class="kw">get</span>(<span class="num">0</span>).value();
+    assertThat(event).hasFieldOrProperty(<span class="str">"data"</span>);
+}</code></pre>
+<h3 id="27-postgresql-시드-데이터">2.7 PostgreSQL 시드 데이터</h3>
+<pre class="code-block" data-lang="sql"><code><span class="cmt">-- platform_auth_seed.sql</span>
+
+<span class="cmt">-- Tenants</span>
+<span class="kw">INSERT</span> <span class="kw">INTO</span> tenants (id, name, plan, status, created_at) <span class="kw">VALUES</span>
+(<span class="str">'tenant-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'Test Workspace'</span>, <span class="str">'free'</span>, <span class="str">'active'</span>, <span class="str">'2026-01-15T10:00:00Z'</span>),
+(<span class="str">'tenant-00000000-0000-0000-0000-000000000002'</span>, <span class="str">'Team Workspace'</span>, <span class="str">'team'</span>, <span class="str">'active'</span>, <span class="str">'2026-01-15T10:00:00Z'</span>);
+
+<span class="cmt">-- Users</span>
+<span class="kw">INSERT</span> <span class="kw">INTO</span> users (id, tenant_id, email, password_hash, display_name, role, status, created_at) <span class="kw">VALUES</span>
+(<span class="str">'user-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'tenant-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'user1@example.com'</span>, <span class="str">'$2a$10$mockHashForTesting'</span>, <span class="str">'홍길동'</span>, <span class="str">'owner'</span>, <span class="str">'active'</span>, <span class="str">'2026-01-15T10:00:00Z'</span>),
+(<span class="str">'user-00000000-0000-0000-0000-000000000002'</span>, <span class="str">'tenant-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'user2@gmail.com'</span>, <span class="kw">NULL</span>, <span class="str">'김영희'</span>, <span class="str">'member'</span>, <span class="str">'active'</span>, <span class="str">'2026-01-15T10:00:00Z'</span>),
+(<span class="str">'user-00000000-0000-0000-0000-000000000005'</span>, <span class="str">'tenant-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'admin@example.com'</span>, <span class="str">'$2a$10$mockHashForTesting'</span>, <span class="str">'관리자'</span>, <span class="str">'admin'</span>, <span class="str">'active'</span>, <span class="str">'2026-01-15T10:00:00Z'</span>);
+
+<span class="cmt">-- OAuth Accounts</span>
+<span class="kw">INSERT</span> <span class="kw">INTO</span> oauth_accounts (user_id, provider, provider_user_id, email, created_at) <span class="kw">VALUES</span>
+(<span class="str">'user-00000000-0000-0000-0000-000000000002'</span>, <span class="str">'google'</span>, <span class="str">'google_user_001'</span>, <span class="str">'user2@gmail.com'</span>, <span class="str">'2026-01-15T10:00:00Z'</span>);</code></pre>
+<hr/>
+<h2 id="3-audit-모듈">3. audit 모듈</h2>
+<h3 id="31-목킹-인터페이스-목록">3.1 목킹 인터페이스 목록</h3>
+<table class="md-table"><thead><tr><th>#</th><th>목킹 대상</th><th>통신 방식</th><th>방향</th><th>도구</th></tr></thead><tbody><tr><td>1</td><td>Kafka Consumer (7개 토픽)</td><td>Kafka</td><td>Inbound</td><td>EmbeddedKafka</td></tr><tr><td>2</td><td>PostgreSQL (audit_logs, processed_events)</td><td>SQL</td><td>Outbound</td><td>Testcontainers</td></tr></tbody></table>
+<h3 id="32-consumer-소비-토픽-목록">3.2 Consumer 소비 토픽 목록</h3>
+<table class="md-table"><thead><tr><th>#</th><th>토픽</th><th>fixture 참조</th></tr></thead><tbody><tr><td>1</td><td><code>user.registered</code></td><td><code>06-kafka-event-mocking.md</code> §2.5</td></tr><tr><td>2</td><td><code>billing.subscription.changed</code></td><td><code>06-kafka-event-mocking.md</code> §2.6</td></tr><tr><td>3</td><td><code>audit.event</code></td><td><code>06-kafka-event-mocking.md</code> §2.7</td></tr><tr><td>4</td><td><code>community.deck.shared</code></td><td><code>06-kafka-event-mocking.md</code> §2.8</td></tr><tr><td>5</td><td><code>community.group.created</code></td><td><code>06-kafka-event-mocking.md</code> §2.10</td></tr><tr><td>6</td><td><code>community.group.joined</code></td><td><code>06-kafka-event-mocking.md</code> §2.11</td></tr><tr><td>7</td><td><code>community.report.created</code></td><td><code>06-kafka-event-mocking.md</code> §2.12</td></tr></tbody></table>
+<h3 id="33-idempotency-검증-테스트">3.3 Idempotency 검증 테스트</h3>
+<pre class="code-block" data-lang="java"><code><span class="anno">@Test</span>
+<span class="kw">void</span> consumeAuditEvent_duplicateId_shouldSkipSecondInsert() {
+    <span class="cmt">// given — 동일 이벤트 2회 발행</span>
+    <span class="type">String</span> fixture = kafkaTestHelper.loadFixture(<span class="str">"fixtures/kafka/audit_event_success.avro.json"</span>);
+
+    kafkaTestHelper.publishAndWait(<span class="str">"audit.event"</span>, <span class="str">"key-1"</span>, fixture, <span class="type">Duration</span>.ofSeconds(<span class="num">5</span>));
+    kafkaTestHelper.publishAndWait(<span class="str">"audit.event"</span>, <span class="str">"key-1"</span>, fixture, <span class="type">Duration</span>.ofSeconds(<span class="num">5</span>));
+
+    <span class="cmt">// then — audit_logs에 1건만 존재</span>
+    Long count = jdbcTemplate.queryForObject(
+        <span class="str">"SELECT COUNT(*) FROM audit_logs WHERE event_id = ?"</span>,
+        Long.<span class="kw">class</span>,
+        <span class="str">"evt-00000000-0000-0000-0000-000000000701"</span>
+    );
+    assertThat(count).isEqualTo(<span class="num">1</span>);
+
+    <span class="cmt">// processed_events에도 1건</span>
+    Long processedCount = jdbcTemplate.queryForObject(
+        <span class="str">"SELECT COUNT(*) FROM processed_events WHERE event_id = ?"</span>,
+        Long.<span class="kw">class</span>,
+        <span class="str">"evt-00000000-0000-0000-0000-000000000701"</span>
+    );
+    assertThat(processedCount).isEqualTo(<span class="num">1</span>);
+}</code></pre>
+<h3 id="34-postgresql-시드-데이터">3.4 PostgreSQL 시드 데이터</h3>
+<pre class="code-block" data-lang="sql"><code><span class="cmt">-- platform_audit_seed.sql</span>
+
+<span class="kw">CREATE</span> <span class="kw">TABLE</span> <span class="kw">IF</span> <span class="kw">NOT</span> <span class="kw">EXISTS</span> audit_logs (
+    id <span class="kw">UUID</span> <span class="kw">PRIMARY</span> <span class="kw">KEY</span> <span class="kw">DEFAULT</span> <span class="type">gen_random_uuid</span>(),
+    tenant_id <span class="kw">UUID</span> <span class="kw">NOT</span> <span class="kw">NULL</span>,
+    event_id <span class="kw">VARCHAR</span>(<span class="num">255</span>) UNIQUE <span class="kw">NOT</span> <span class="kw">NULL</span>,
+    action <span class="kw">VARCHAR</span>(<span class="num">100</span>) <span class="kw">NOT</span> <span class="kw">NULL</span>,
+    user_id <span class="kw">UUID</span>,
+    resource_type <span class="kw">VARCHAR</span>(<span class="num">50</span>),
+    resource_id <span class="kw">UUID</span>,
+    ip_address <span class="kw">VARCHAR</span>(<span class="num">45</span>),
+    user_agent <span class="kw">TEXT</span>,
+    metadata <span class="kw">JSONB</span>,
+    created_at <span class="kw">TIMESTAMPTZ</span> <span class="kw">NOT</span> <span class="kw">NULL</span> <span class="kw">DEFAULT</span> <span class="type">NOW</span>()
+);
+
+<span class="kw">CREATE</span> <span class="kw">TABLE</span> <span class="kw">IF</span> <span class="kw">NOT</span> <span class="kw">EXISTS</span> processed_events (
+    event_id <span class="kw">VARCHAR</span>(<span class="num">255</span>) <span class="kw">PRIMARY</span> <span class="kw">KEY</span>,
+    processed_at <span class="kw">TIMESTAMPTZ</span> <span class="kw">NOT</span> <span class="kw">NULL</span> <span class="kw">DEFAULT</span> <span class="type">NOW</span>()
+);
+
+<span class="cmt">-- 기존 감사 로그 (조회 테스트용)</span>
+<span class="kw">INSERT</span> <span class="kw">INTO</span> audit_logs (id, tenant_id, event_id, action, user_id, resource_type, resource_id, ip_address, created_at) <span class="kw">VALUES</span>
+(<span class="str">'al-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'tenant-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'evt-seed-001'</span>, <span class="str">'note.create'</span>, <span class="str">'user-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'note'</span>, <span class="str">'note-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'192.168.1.100'</span>, <span class="str">'2026-01-15T09:00:00Z'</span>);
+
+<span class="kw">INSERT</span> <span class="kw">INTO</span> processed_events (event_id, processed_at) <span class="kw">VALUES</span>
+(<span class="str">'evt-seed-001'</span>, <span class="str">'2026-01-15T09:00:01Z'</span>);</code></pre>
+<hr/>
+<h2 id="4-billing-모듈">4. billing 모듈</h2>
+<h3 id="41-목킹-인터페이스-목록">4.1 목킹 인터페이스 목록</h3>
+<table class="md-table"><thead><tr><th>#</th><th>목킹 대상</th><th>통신 방식</th><th>방향</th><th>도구</th></tr></thead><tbody><tr><td>1</td><td>Stripe Checkout Session</td><td>REST</td><td>Outbound</td><td>WireMock</td></tr><tr><td>2</td><td>Stripe Customer Portal</td><td>REST</td><td>Outbound</td><td>WireMock</td></tr><tr><td>3</td><td>Stripe Invoices</td><td>REST</td><td>Outbound</td><td>WireMock</td></tr><tr><td>4</td><td>Stripe Webhooks (3종)</td><td>REST</td><td>Inbound</td><td>WireMock + 수동 호출</td></tr><tr><td>5</td><td>PostgreSQL (subscriptions, usage_counters)</td><td>SQL</td><td>Outbound</td><td>Testcontainers</td></tr><tr><td>6</td><td>Kafka Producer (<code>billing.subscription.changed</code>)</td><td>Kafka</td><td>Outbound</td><td>EmbeddedKafka</td></tr></tbody></table>
+<h3 id="42-stripe-mock-설정">4.2 Stripe Mock 설정</h3>
+<blockquote>전체 WireMock 매핑은 <code>07-external-api-mocking.md</code> §3 참조.</blockquote>
+<p><strong>application-test.yml (billing 섹션):</strong></p>
+<pre class="code-block" data-lang="yaml"><code><span class="key">stripe</span>:
+  <span class="key">api-key</span>: sk_test_mock_key
+  <span class="key">webhook-secret</span>: whsec_test_mock_secret
+  <span class="key">api-base-url</span>: http://localhost:${wiremock.server.port}/stripe
+  <span class="key">prices</span>:
+    <span class="key">pro-monthly</span>: price_pro_monthly
+    <span class="key">pro-yearly</span>: price_pro_yearly
+    <span class="key">team-monthly</span>: price_team_monthly
+    <span class="key">team-yearly</span>: price_team_yearly</code></pre>
+<h3 id="43-webhook-처리-테스트">4.3 Webhook 처리 테스트</h3>
+<pre class="code-block" data-lang="java"><code><span class="anno">@Test</span>
+<span class="kw">void</span> handleCheckoutCompleted_shouldActivateSubscription() {
+    <span class="cmt">// given — Stripe webhook payload</span>
+    <span class="type">String</span> payload = kafkaTestHelper.loadFixture(
+        <span class="str">"fixtures/stripe/checkout_session_completed_webhook.json"</span>);
+    <span class="type">long</span> timestamp = <span class="type">Instant</span>.parse(<span class="str">"2026-01-15T10:00:00Z"</span>).getEpochSecond();
+    <span class="type">String</span> signature = StripeWebhookTestHelper.generateSignature(payload, timestamp);
+
+    <span class="cmt">// when</span>
+    mockMvc.perform(post(<span class="str">"/billing/webhooks"</span>)
+            .header(<span class="str">"Stripe-Signature"</span>, signature)
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(payload))
+        .andExpect(status().isOk());
+
+    <span class="cmt">// then — 구독 활성화 확인</span>
+    <span class="type">Optional</span>&lt;Subscription&gt; sub = subscriptionRepository.findByTenantId(
+        <span class="type">UUID</span>.fromString(<span class="str">"tenant-00000000-0000-0000-0000-000000000001"</span>));
+    assertThat(sub).isPresent();
+    assertThat(sub.<span class="kw">get</span>().getPlan()).isEqualTo(<span class="str">"pro"</span>);
+    assertThat(sub.<span class="kw">get</span>().getStatus()).isEqualTo(<span class="str">"active"</span>);
+
+    <span class="cmt">// Kafka 이벤트 발행 확인</span>
+    <span class="type">List</span>&lt;<span class="type">ConsumerRecord</span>&lt;<span class="type">String</span>, Object&gt;&gt; records =
+        kafkaTestHelper.consumeMessages(<span class="str">"billing.subscription.changed"</span>, <span class="num">1</span>, <span class="type">Duration</span>.ofSeconds(<span class="num">5</span>));
+    assertThat(records).hasSize(<span class="num">1</span>);
+}</code></pre>
+<h3 id="44-usage-counter-테스트-데이터">4.4 Usage Counter 테스트 데이터</h3>
+<pre class="code-block" data-lang="sql"><code><span class="cmt">-- platform_billing_seed.sql</span>
+
+<span class="cmt">-- Subscriptions</span>
+<span class="kw">INSERT</span> <span class="kw">INTO</span> subscriptions (id, tenant_id, plan, status, stripe_subscription_id, current_period_start, current_period_end, created_at) <span class="kw">VALUES</span>
+(<span class="str">'sub-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'tenant-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'free'</span>, <span class="str">'active'</span>, <span class="kw">NULL</span>, <span class="str">'2026-01-01'</span>, <span class="str">'2026-02-01'</span>, <span class="str">'2026-01-15T10:00:00Z'</span>),
+(<span class="str">'sub-00000000-0000-0000-0000-000000000002'</span>, <span class="str">'tenant-00000000-0000-0000-0000-000000000002'</span>, <span class="str">'team'</span>, <span class="str">'active'</span>, <span class="str">'sub_mock_002'</span>, <span class="str">'2026-01-01'</span>, <span class="str">'2026-02-01'</span>, <span class="str">'2026-01-15T10:00:00Z'</span>);
+
+<span class="cmt">-- Usage Counters</span>
+<span class="kw">INSERT</span> <span class="kw">INTO</span> usage_counters (tenant_id, counter_type, used, max_allowed, period_start, period_end) <span class="kw">VALUES</span>
+(<span class="str">'tenant-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'api_calls'</span>, <span class="num">50</span>, <span class="num">100</span>, <span class="str">'2026-01-15T00:00:00Z'</span>, <span class="str">'2026-01-15T23:59:59Z'</span>),
+(<span class="str">'tenant-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'ai_generations'</span>, <span class="num">8</span>, <span class="num">10</span>, <span class="str">'2026-01-15T00:00:00Z'</span>, <span class="str">'2026-01-15T23:59:59Z'</span>),
+<span class="cmt">-- 할당량 초과 시나리오 (Free 플랜 AI 일일 한도 도달)</span>
+(<span class="str">'tenant-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'ai_generations_exceeded'</span>, <span class="num">10</span>, <span class="num">10</span>, <span class="str">'2026-01-15T00:00:00Z'</span>, <span class="str">'2026-01-15T23:59:59Z'</span>);
+
+<span class="cmt">-- Plan Definitions</span>
+<span class="kw">INSERT</span> <span class="kw">INTO</span> plan_definitions (code, name, price, currency, interval_type, features) <span class="kw">VALUES</span>
+(<span class="str">'free'</span>, <span class="str">'Free'</span>, <span class="num">0</span>, <span class="str">'USD'</span>, <span class="str">'month'</span>, <span class="str">'{"notes": -1, "ai_per_day": 10, "storage_gb": 1}'</span>),
+(<span class="str">'pro'</span>, <span class="str">'Pro'</span>, <span class="num">9.99</span>, <span class="str">'USD'</span>, <span class="str">'month'</span>, <span class="str">'{"notes": -1, "ai_per_month": 500, "storage_gb": 10}'</span>),
+(<span class="str">'team'</span>, <span class="str">'Team'</span>, <span class="num">19.99</span>, <span class="str">'USD'</span>, <span class="str">'month'</span>, <span class="str">'{"notes": -1, "ai_per_month": 1000, "storage_gb": 50, "members": 20}'</span>);</code></pre>
+<hr/>
+<h2 id="5-notification-모듈">5. notification 모듈</h2>
+<h3 id="51-목킹-인터페이스-목록">5.1 목킹 인터페이스 목록</h3>
+<table class="md-table"><thead><tr><th>#</th><th>목킹 대상</th><th>통신 방식</th><th>방향</th><th>도구</th></tr></thead><tbody><tr><td>1</td><td>Kafka Consumer (8개 토픽)</td><td>Kafka</td><td>Inbound</td><td>EmbeddedKafka</td></tr><tr><td>2</td><td>FCM API</td><td>REST</td><td>Outbound</td><td>WireMock</td></tr><tr><td>3</td><td>AWS SES</td><td>REST</td><td>Outbound</td><td>WireMock</td></tr><tr><td>4</td><td>Redis (미읽음 카운트)</td><td>Redis Protocol</td><td>Outbound</td><td>Testcontainers</td></tr><tr><td>5</td><td>PostgreSQL (notifications, notification_preferences, device_tokens)</td><td>SQL</td><td>Outbound</td><td>Testcontainers</td></tr></tbody></table>
+<h3 id="52-consumer-소비-토픽-목록">5.2 Consumer 소비 토픽 목록</h3>
+<table class="md-table"><thead><tr><th>#</th><th>토픽</th><th>알림 유형</th><th>fixture 참조</th></tr></thead><tbody><tr><td>1</td><td><code>gamification.xp.earned</code></td><td>XP 획득 알림</td><td><code>06-kafka-event-mocking.md</code> §2.13</td></tr><tr><td>2</td><td><code>gamification.badge.earned</code></td><td>배지 획득 알림</td><td><code>06-kafka-event-mocking.md</code> §2.14</td></tr><tr><td>3</td><td><code>gamification.level.up</code></td><td>레벨업 알림</td><td><code>06-kafka-event-mocking.md</code> §2.15</td></tr><tr><td>4</td><td><code>notification.send</code></td><td>범용 알림 발송</td><td><code>06-kafka-event-mocking.md</code> §2.16</td></tr><tr><td>5</td><td><code>card.review.due</code></td><td>복습 리마인더</td><td><code>06-kafka-event-mocking.md</code> §2.17</td></tr><tr><td>6</td><td><code>community.deck.shared</code></td><td>덱 공유 알림</td><td><code>06-kafka-event-mocking.md</code> §2.8</td></tr><tr><td>7</td><td><code>community.note.shared</code></td><td>노트 공유 알림</td><td><code>06-kafka-event-mocking.md</code> §2.9</td></tr><tr><td>8</td><td><code>community.group.joined</code></td><td>그룹 가입 알림</td><td><code>06-kafka-event-mocking.md</code> §2.11</td></tr></tbody></table>
+<h3 id="53-fcmses-mock-설정">5.3 FCM/SES Mock 설정</h3>
+<blockquote>전체 WireMock 매핑은 <code>07-external-api-mocking.md</code> §4, §5 참조.</blockquote>
+<p><strong>application-test.yml (notification 섹션):</strong></p>
+<pre class="code-block" data-lang="yaml"><code><span class="key">notification</span>:
+  <span class="key">fcm</span>:
+    <span class="key">project-id</span>: synapse-mock
+    <span class="key">api-url</span>: http://localhost:${wiremock.server.port}/fcm
+    <span class="key">credentials-json</span>: classpath:firebase/mock-credentials.json
+  <span class="key">ses</span>:
+    <span class="key">endpoint-url</span>: http://localhost:${wiremock.server.port}/ses
+    <span class="key">region</span>: ap-northeast-<span class="num">2</span>
+    <span class="key">from-address</span>: noreply@synapse.app
+  <span class="key">quiet-hours</span>:
+    <span class="key">default-start</span>: <span class="str">"22:00"</span>
+    <span class="key">default-end</span>: <span class="str">"08:00"</span>
+    <span class="key">timezone</span>: Asia/Seoul</code></pre>
+<h3 id="54-quiet-hours-테스트">5.4 Quiet Hours 테스트</h3>
+<pre class="code-block" data-lang="java"><code><span class="anno">@Test</span>
+<span class="kw">void</span> notification_duringQuietHours_shouldBeQueued() {
+    <span class="cmt">// given — 시간을 23:00 KST (quiet hours 내)로 설정</span>
+    Clock quietClock = Clock.fixed(
+        <span class="type">Instant</span>.parse(<span class="str">"2026-01-15T14:00:00Z"</span>),  <span class="cmt">// = 23:00 KST</span>
+        ZoneId.of(<span class="str">"Asia/Seoul"</span>)
+    );
+
+    <span class="cmt">// notification_preferences에 quiet_hours 활성화</span>
+    <span class="cmt">// when — notification.send 이벤트 발행</span>
+    <span class="type">String</span> fixture = kafkaTestHelper.loadFixture(
+        <span class="str">"fixtures/kafka/notification_send_level_up.avro.json"</span>);
+    kafkaTestHelper.publishAndWait(<span class="str">"notification.send"</span>, <span class="str">"key-1"</span>, fixture, <span class="type">Duration</span>.ofSeconds(<span class="num">5</span>));
+
+    <span class="cmt">// then — FCM 호출 없음 (quiet hours), 대신 큐에 저장</span>
+    verify(<span class="num">0</span>, postRequestedFor(urlPathEqualTo(<span class="str">"/fcm/v1/projects/synapse-mock/messages:send"</span>)));
+
+    Long queuedCount = jdbcTemplate.queryForObject(
+        <span class="str">"SELECT COUNT(*) FROM notifications WHERE status = 'queued'"</span>,
+        Long.<span class="kw">class</span>
+    );
+    assertThat(queuedCount).isEqualTo(<span class="num">1</span>);
+}</code></pre>
+<h3 id="55-postgresql-시드-데이터">5.5 PostgreSQL 시드 데이터</h3>
+<pre class="code-block" data-lang="sql"><code><span class="cmt">-- platform_notification_seed.sql</span>
+
+<span class="cmt">-- Device Tokens</span>
+<span class="kw">INSERT</span> <span class="kw">INTO</span> device_tokens (id, user_id, token, platform, created_at) <span class="kw">VALUES</span>
+(<span class="str">'dt-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'user-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'device_token_mock_001'</span>, <span class="str">'android'</span>, <span class="str">'2026-01-15T10:00:00Z'</span>),
+(<span class="str">'dt-00000000-0000-0000-0000-000000000002'</span>, <span class="str">'user-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'device_token_mock_002'</span>, <span class="str">'web'</span>, <span class="str">'2026-01-15T10:00:00Z'</span>),
+(<span class="str">'dt-00000000-0000-0000-0000-000000000003'</span>, <span class="str">'user-00000000-0000-0000-0000-000000000002'</span>, <span class="str">'device_token_mock_003'</span>, <span class="str">'ios'</span>, <span class="str">'2026-01-15T10:00:00Z'</span>);
+
+<span class="cmt">-- Notification Preferences</span>
+<span class="kw">INSERT</span> <span class="kw">INTO</span> notification_preferences (user_id, category, push_enabled, email_enabled, quiet_hours_enabled, quiet_start, quiet_end) <span class="kw">VALUES</span>
+(<span class="str">'user-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'gamification'</span>, <span class="kw">true</span>, <span class="kw">false</span>, <span class="kw">true</span>, <span class="str">'22:00'</span>, <span class="str">'08:00'</span>),
+(<span class="str">'user-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'community'</span>, <span class="kw">true</span>, <span class="kw">true</span>, <span class="kw">true</span>, <span class="str">'22:00'</span>, <span class="str">'08:00'</span>),
+(<span class="str">'user-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'review_reminder'</span>, <span class="kw">true</span>, <span class="kw">true</span>, <span class="kw">false</span>, <span class="kw">NULL</span>, <span class="kw">NULL</span>),
+(<span class="str">'user-00000000-0000-0000-0000-000000000002'</span>, <span class="str">'gamification'</span>, <span class="kw">true</span>, <span class="kw">true</span>, <span class="kw">false</span>, <span class="kw">NULL</span>, <span class="kw">NULL</span>),
+(<span class="str">'user-00000000-0000-0000-0000-000000000002'</span>, <span class="str">'community'</span>, <span class="kw">false</span>, <span class="kw">true</span>, <span class="kw">false</span>, <span class="kw">NULL</span>, <span class="kw">NULL</span>);
+
+<span class="cmt">-- 기존 알림 (목록 조회 테스트용)</span>
+<span class="kw">INSERT</span> <span class="kw">INTO</span> notifications (id, user_id, tenant_id, template_code, category, title, body, status, channel, created_at) <span class="kw">VALUES</span>
+(<span class="str">'notif-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'user-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'tenant-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'BADGE_EARNED'</span>, <span class="str">'gamification'</span>, <span class="str">'배지 획득!'</span>, <span class="str">'7일 전사 배지를 획득했습니다.'</span>, <span class="str">'sent'</span>, <span class="str">'push'</span>, <span class="str">'2026-01-15T09:00:00Z'</span>),
+(<span class="str">'notif-00000000-0000-0000-0000-000000000002'</span>, <span class="str">'user-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'tenant-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'REVIEW_DUE'</span>, <span class="str">'review_reminder'</span>, <span class="str">'복습 시간!'</span>, <span class="str">'25장의 카드가 대기 중입니다.'</span>, <span class="str">'read'</span>, <span class="str">'push'</span>, <span class="str">'2026-01-14T07:00:00Z'</span>);</code></pre>
+<h3 id="56-redis-미읽음-카운트-테스트">5.6 Redis 미읽음 카운트 테스트</h3>
+<pre class="code-block" data-lang="java"><code><span class="anno">@Test</span>
+<span class="kw">void</span> notification_afterInsert_shouldIncrementUnreadCount() {
+    <span class="cmt">// given</span>
+    <span class="type">String</span> fixture = kafkaTestHelper.loadFixture(
+        <span class="str">"fixtures/kafka/gamification_badge_earned_success.avro.json"</span>);
+
+    <span class="cmt">// when</span>
+    kafkaTestHelper.publishAndWait(<span class="str">"gamification.badge.earned"</span>, <span class="str">"key-1"</span>, fixture, <span class="type">Duration</span>.ofSeconds(<span class="num">5</span>));
+
+    <span class="cmt">// then — Redis 미읽음 카운트 증가 확인</span>
+    <span class="type">String</span> unreadCount = redisTemplate.opsForValue().<span class="kw">get</span>(
+        <span class="str">"unread:user-00000000-0000-0000-0000-000000000001"</span>
+    );
+    assertThat(Integer.parseInt(unreadCount)).isGreaterThanOrEqualTo(<span class="num">1</span>);
+}</code></pre>
+<hr/>
+<h2 id="6-testcontainers-공통-설정">6. Testcontainers 공통 설정</h2>
+<pre class="code-block" data-lang="java"><code><span class="anno">@Testcontainers</span>
+<span class="anno">@SpringBootTest</span>
+<span class="anno">@ActiveProfiles</span>(<span class="str">"test"</span>)
+<span class="kw">public</span> <span class="kw">abstract</span> <span class="kw">class</span> AbstractPlatformIntegrationTest {
+
+    <span class="anno">@Container</span>
+    <span class="kw">static</span> PostgreSQLContainer&lt;?&gt; postgres = <span class="kw">new</span> PostgreSQLContainer&lt;&gt;(
+        DockerImageName.parse(<span class="str">"pgvector/pgvector:pg16"</span>)
+    )
+        .withDatabaseName(<span class="str">"synapse_platform_test"</span>)
+        .withUsername(<span class="str">"synapse"</span>)
+        .withPassword(<span class="str">"test_password"</span>)
+        .withInitScript(<span class="str">"db/platform_init.sql"</span>);
+
+    <span class="anno">@Container</span>
+    <span class="kw">static</span> GenericContainer&lt;?&gt; redis = <span class="kw">new</span> GenericContainer&lt;&gt;(
+        DockerImageName.parse(<span class="str">"redis:7-alpine"</span>)
+    ).withExposedPorts(<span class="num">6379</span>);
+
+    <span class="anno">@DynamicPropertySource</span>
+    <span class="kw">static</span> <span class="kw">void</span> configureProperties(DynamicPropertyRegistry registry) {
+        registry.add(<span class="str">"spring.datasource.url"</span>, postgres::getJdbcUrl);
+        registry.add(<span class="str">"spring.datasource.username"</span>, postgres::getUsername);
+        registry.add(<span class="str">"spring.datasource.password"</span>, postgres::getPassword);
+        registry.add(<span class="str">"spring.data.redis.host"</span>, redis::getHost);
+        registry.add(<span class="str">"spring.data.redis.port"</span>, () -&gt; redis.getMappedPort(<span class="num">6379</span>));
+    }
+}</code></pre>
+<hr/>
+<h2 id="7-applicationtestyml-전체">7. application-test.yml (전체)</h2>
+<pre class="code-block" data-lang="yaml"><code><span class="key">spring</span>:
+  <span class="key">profiles</span>:
+    <span class="key">active</span>: test
+  <span class="key">datasource</span>:
+    <span class="key">url</span>: ${SPRING_DATASOURCE_URL}
+    <span class="key">username</span>: ${SPRING_DATASOURCE_USERNAME}
+    <span class="key">password</span>: ${SPRING_DATASOURCE_PASSWORD}
+  <span class="key">jpa</span>:
+    <span class="key">hibernate</span>:
+      <span class="key">ddl-auto</span>: create-drop
+    <span class="key">show-sql</span>: <span class="kw">true</span>
+  <span class="key">data</span>:
+    <span class="key">redis</span>:
+      <span class="key">host</span>: ${SPRING_DATA_REDIS_HOST}
+      <span class="key">port</span>: ${SPRING_DATA_REDIS_PORT}
+  <span class="key">kafka</span>:
+    <span class="key">bootstrap-servers</span>: ${spring.embedded.kafka.brokers}
+    <span class="key">consumer</span>:
+      <span class="key">auto-offset-reset</span>: earliest
+      <span class="key">group-id</span>: platform-test-group
+    <span class="key">properties</span>:
+      <span class="key">schema.registry.url</span>: mock://test-schema-registry
+
+<span class="key">jwt</span>:
+  <span class="key">secret</span>: test-jwt-secret-key-must-be-at-least-<span class="num">256</span>-bits-long-for-hs256
+  <span class="key">access-token-expiry</span>: <span class="num">900</span>
+  <span class="key">refresh-token-expiry</span>: <span class="num">604800</span>
+
+<span class="key">oauth</span>:
+  <span class="key">google</span>:
+    <span class="key">client-id</span>: google_test_client_id
+    <span class="key">client-secret</span>: google_test_client_secret
+    <span class="key">token-url</span>: http://localhost:${wiremock.server.port}/google/token
+    <span class="key">userinfo-url</span>: http://localhost:${wiremock.server.port}/google/userinfo
+  <span class="key">github</span>:
+    <span class="key">client-id</span>: github_test_client_id
+    <span class="key">client-secret</span>: github_test_client_secret
+    <span class="key">token-url</span>: http://localhost:${wiremock.server.port}/github/token
+    <span class="key">userinfo-url</span>: http://localhost:${wiremock.server.port}/github/userinfo
+  <span class="key">apple</span>:
+    <span class="key">client-id</span>: com.synapse.app
+    <span class="key">token-url</span>: http://localhost:${wiremock.server.port}/apple/token
+  <span class="key">microsoft</span>:
+    <span class="key">client-id</span>: ms_test_client_id
+    <span class="key">client-secret</span>: ms_test_client_secret
+    <span class="key">token-url</span>: http://localhost:${wiremock.server.port}/microsoft/token
+    <span class="key">userinfo-url</span>: http://localhost:${wiremock.server.port}/microsoft/userinfo
+
+<span class="key">stripe</span>:
+  <span class="key">api-key</span>: sk_test_mock_key
+  <span class="key">webhook-secret</span>: whsec_test_mock_secret
+  <span class="key">api-base-url</span>: http://localhost:${wiremock.server.port}/stripe
+
+<span class="key">notification</span>:
+  <span class="key">fcm</span>:
+    <span class="key">project-id</span>: synapse-mock
+    <span class="key">api-url</span>: http://localhost:${wiremock.server.port}/fcm
+  <span class="key">ses</span>:
+    <span class="key">endpoint-url</span>: http://localhost:${wiremock.server.port}/ses
+    <span class="key">from-address</span>: noreply@synapse.app</code></pre>
+
+  </main>
+  <footer class="doc-footer">
+    <span>Synapse · Mocking Docs v1.0 · 2026-05-14</span>
+    <a href="https://github.com/team-project-final/documents/blob/main/docs/mocking/01-platform-svc-mocking.md" target="_blank" rel="noopener">edit on GitHub →</a>
+  </footer>
+</div>
+</body>
+</html>

@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>07 · 외부 API — Synapse Mocking Docs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="doc-style.css" />
+</head>
+<body>
+<div class="doc-shell">
+  <header class="doc-header">
+    <div class="doc-header-meta">
+      <span class="doc-idx">DOC 07</span>
+      <span class="doc-en">External APIs</span>
+    </div>
+    <h1 class="doc-h1">외부 API</h1>
+    <div class="doc-links">
+      <a class="doc-link" href="https://github.com/team-project-final/documents/blob/main/docs/mocking/07-external-api-mocking.md" target="_blank" rel="noopener">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        GitHub 원본 보기
+      </a>
+      <a class="doc-link" href="https://github.com/team-project-final/documents/raw/main/docs/mocking/07-external-api-mocking.md" target="_blank" rel="noopener">📥 raw .md 다운로드</a>
+    </div>
+  </header>
+  <main class="doc-body">
+<h1 id="외부-api-목킹-정의서">외부 API 목킹 정의서</h1>
+<blockquote><strong>프로젝트</strong>: Synapse — 통합 학습-지식 그래프 SaaS <strong>버전</strong>: v1.0 <strong>작성일</strong>: 2026-05-14 <strong>범위</strong>: OAuth (4종), Stripe, FCM, SES, OpenAI, Anthropic Claude — WireMock 매핑 + fixture 전체</blockquote>
+<hr/>
+<h2 id="1-wiremock-공통-설정">1. WireMock 공통 설정</h2>
+<h3 id="11-spring-boot-연동">1.1 Spring Boot 연동</h3>
+<pre class="code-block" data-lang="java"><code><span class="anno">@SpringBootTest</span>
+<span class="anno">@AutoConfigureWireMock</span>(port = <span class="num">0</span>)
+<span class="kw">public</span> <span class="kw">abstract</span> <span class="kw">class</span> AbstractExternalApiTest {
+
+    <span class="anno">@DynamicPropertySource</span>
+    <span class="kw">static</span> <span class="kw">void</span> overrideExternalUrls(DynamicPropertyRegistry registry) {
+        <span class="type">String</span> baseUrl = <span class="str">"http://localhost:${wiremock.server.port}"</span>;
+        <span class="cmt">// OAuth</span>
+        registry.add(<span class="str">"oauth.google.token-url"</span>, () -&gt; baseUrl + <span class="str">"/google/token"</span>);
+        registry.add(<span class="str">"oauth.google.userinfo-url"</span>, () -&gt; baseUrl + <span class="str">"/google/userinfo"</span>);
+        registry.add(<span class="str">"oauth.github.token-url"</span>, () -&gt; baseUrl + <span class="str">"/github/token"</span>);
+        registry.add(<span class="str">"oauth.github.userinfo-url"</span>, () -&gt; baseUrl + <span class="str">"/github/userinfo"</span>);
+        registry.add(<span class="str">"oauth.apple.token-url"</span>, () -&gt; baseUrl + <span class="str">"/apple/token"</span>);
+        registry.add(<span class="str">"oauth.microsoft.token-url"</span>, () -&gt; baseUrl + <span class="str">"/microsoft/token"</span>);
+        registry.add(<span class="str">"oauth.microsoft.userinfo-url"</span>, () -&gt; baseUrl + <span class="str">"/microsoft/userinfo"</span>);
+        <span class="cmt">// Stripe</span>
+        registry.add(<span class="str">"stripe.api-base-url"</span>, () -&gt; baseUrl + <span class="str">"/stripe"</span>);
+        <span class="cmt">// FCM</span>
+        registry.add(<span class="str">"fcm.api-url"</span>, () -&gt; baseUrl + <span class="str">"/fcm"</span>);
+        <span class="cmt">// SES</span>
+        registry.add(<span class="str">"ses.endpoint-url"</span>, () -&gt; baseUrl + <span class="str">"/ses"</span>);
+        <span class="cmt">// OpenAI</span>
+        registry.add(<span class="str">"openai.api-base-url"</span>, () -&gt; baseUrl + <span class="str">"/openai"</span>);
+        <span class="cmt">// Claude</span>
+        registry.add(<span class="str">"anthropic.api-base-url"</span>, () -&gt; baseUrl + <span class="str">"/anthropic"</span>);
+    }
+}</code></pre>
+<h3 id="12-python-respx-연동">1.2 Python (respx) 연동</h3>
+<pre class="code-block" data-lang="python"><code><span class="kw">import</span> respx
+<span class="kw">import</span> httpx
+
+<span class="anno">@respx</span>.mock
+<span class="kw">async</span> <span class="kw">def</span> test_openai_embedding():
+    respx.post(<span class="str">"https://api.openai.com/v1/embeddings"</span>).mock(
+        return_value=httpx.Response(<span class="num">200</span>, json={...})
+    )
+    <span class="cmt"># 테스트 코드</span></code></pre>
+<hr/>
+<h2 id="2-oauth-provider-목킹">2. OAuth Provider 목킹</h2>
+<h3 id="21-google-oauth">2.1 Google OAuth</h3>
+<h4 id="token-exchange-success">Token Exchange — Success</h4>
+<p><strong>WireMock 매핑:</strong></p>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"request"</span>: {
+    <span class="key">"method"</span>: <span class="str">"POST"</span>,
+    <span class="key">"urlPath"</span>: <span class="str">"/google/token"</span>,
+    <span class="key">"bodyPatterns"</span>: [
+      { <span class="key">"contains"</span>: <span class="str">"grant_type=authorization_code"</span> },
+      { <span class="key">"contains"</span>: <span class="str">"code="</span> }
+    ]
+  },
+  <span class="key">"response"</span>: {
+    <span class="key">"status"</span>: <span class="num">200</span>,
+    <span class="key">"headers"</span>: {
+      <span class="key">"Content-Type"</span>: <span class="str">"application/json"</span>
+    },
+    <span class="key">"jsonBody"</span>: {
+      <span class="key">"access_token"</span>: <span class="str">"google_mock_access_token_001"</span>,
+      <span class="key">"token_type"</span>: <span class="str">"Bearer"</span>,
+      <span class="key">"expires_in"</span>: <span class="num">3600</span>,
+      <span class="key">"refresh_token"</span>: <span class="str">"google_mock_refresh_token_001"</span>,
+      <span class="key">"scope"</span>: <span class="str">"openid email profile"</span>,
+      <span class="key">"id_token"</span>: <span class="str">"eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJhY2NvdW50cy5nb29nbGUuY29tIiwic3ViIjoiMTIzNDU2Nzg5MCIsImVtYWlsIjoidXNlcjFAZ21haWwuY29tIiwibmFtZSI6Iu2Zjeq4uOuPmSIsInBpY3R1cmUiOiJodHRwczovL2xoMy5nb29nbGV1c2VyY29udGVudC5jb20vYS9kZWZhdWx0IiwiYXVkIjoiY2xpZW50X2lkIiwiZXhwIjoxNzY5NTIyNDAwfQ.mock_signature"</span>
+    }
+  }
+}</code></pre>
+<h4 id="userinfo-success">Userinfo — Success</h4>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"request"</span>: {
+    <span class="key">"method"</span>: <span class="str">"GET"</span>,
+    <span class="key">"urlPath"</span>: <span class="str">"/google/userinfo"</span>,
+    <span class="key">"headers"</span>: {
+      <span class="key">"Authorization"</span>: { <span class="key">"contains"</span>: <span class="str">"Bearer google_mock_access_token"</span> }
+    }
+  },
+  <span class="key">"response"</span>: {
+    <span class="key">"status"</span>: <span class="num">200</span>,
+    <span class="key">"jsonBody"</span>: {
+      <span class="key">"sub"</span>: <span class="str">"google_user_001"</span>,
+      <span class="key">"email"</span>: <span class="str">"user1@gmail.com"</span>,
+      <span class="key">"email_verified"</span>: <span class="kw">true</span>,
+      <span class="key">"name"</span>: <span class="str">"홍길동"</span>,
+      <span class="key">"picture"</span>: <span class="str">"https://lh3.googleusercontent.com/a/default"</span>,
+      <span class="key">"locale"</span>: <span class="str">"ko"</span>
+    }
+  }
+}</code></pre>
+<h4 id="error-invalid-code-401">Error — Invalid Code (401)</h4>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"request"</span>: {
+    <span class="key">"method"</span>: <span class="str">"POST"</span>,
+    <span class="key">"urlPath"</span>: <span class="str">"/google/token"</span>,
+    <span class="key">"bodyPatterns"</span>: [
+      { <span class="key">"contains"</span>: <span class="str">"code=invalid_code"</span> }
+    ]
+  },
+  <span class="key">"response"</span>: {
+    <span class="key">"status"</span>: <span class="num">401</span>,
+    <span class="key">"jsonBody"</span>: {
+      <span class="key">"error"</span>: <span class="str">"invalid_grant"</span>,
+      <span class="key">"error_description"</span>: <span class="str">"Bad Request"</span>
+    }
+  }
+}</code></pre>
+<h4 id="error-forbidden-403">Error — Forbidden (403)</h4>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"request"</span>: {
+    <span class="key">"method"</span>: <span class="str">"GET"</span>,
+    <span class="key">"urlPath"</span>: <span class="str">"/google/userinfo"</span>,
+    <span class="key">"headers"</span>: {
+      <span class="key">"Authorization"</span>: { <span class="key">"contains"</span>: <span class="str">"Bearer expired_token"</span> }
+    }
+  },
+  <span class="key">"response"</span>: {
+    <span class="key">"status"</span>: <span class="num">403</span>,
+    <span class="key">"jsonBody"</span>: {
+      <span class="key">"error"</span>: {
+        <span class="key">"code"</span>: <span class="num">403</span>,
+        <span class="key">"message"</span>: <span class="str">"Request had insufficient authentication scopes."</span>,
+        <span class="key">"status"</span>: <span class="str">"PERMISSION_DENIED"</span>
+      }
+    }
+  }
+}</code></pre>
+<hr/>
+<h3 id="22-github-oauth">2.2 GitHub OAuth</h3>
+<h4 id="token-exchange-success">Token Exchange — Success</h4>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"request"</span>: {
+    <span class="key">"method"</span>: <span class="str">"POST"</span>,
+    <span class="key">"urlPath"</span>: <span class="str">"/github/token"</span>,
+    <span class="key">"headers"</span>: {
+      <span class="key">"Accept"</span>: { <span class="key">"equalTo"</span>: <span class="str">"application/json"</span> }
+    },
+    <span class="key">"bodyPatterns"</span>: [
+      { <span class="key">"contains"</span>: <span class="str">"code="</span> }
+    ]
+  },
+  <span class="key">"response"</span>: {
+    <span class="key">"status"</span>: <span class="num">200</span>,
+    <span class="key">"jsonBody"</span>: {
+      <span class="key">"access_token"</span>: <span class="str">"github_mock_access_token_001"</span>,
+      <span class="key">"token_type"</span>: <span class="str">"bearer"</span>,
+      <span class="key">"scope"</span>: <span class="str">"read:user,user:email"</span>
+    }
+  }
+}</code></pre>
+<h4 id="userinfo-success">Userinfo — Success</h4>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"request"</span>: {
+    <span class="key">"method"</span>: <span class="str">"GET"</span>,
+    <span class="key">"urlPath"</span>: <span class="str">"/github/userinfo"</span>,
+    <span class="key">"headers"</span>: {
+      <span class="key">"Authorization"</span>: { <span class="key">"contains"</span>: <span class="str">"Bearer github_mock_access_token"</span> }
+    }
+  },
+  <span class="key">"response"</span>: {
+    <span class="key">"status"</span>: <span class="num">200</span>,
+    <span class="key">"jsonBody"</span>: {
+      <span class="key">"id"</span>: <span class="num">12345678</span>,
+      <span class="key">"login"</span>: <span class="str">"honggildong"</span>,
+      <span class="key">"name"</span>: <span class="str">"홍길동"</span>,
+      <span class="key">"email"</span>: <span class="str">"user1@github.com"</span>,
+      <span class="key">"avatar_url"</span>: <span class="str">"https://avatars.githubusercontent.com/u/12345678"</span>,
+      <span class="key">"bio"</span>: <span class="str">"학습 열정가"</span>
+    }
+  }
+}</code></pre>
+<h4 id="error-invalid-token-401">Error — Invalid Token (401)</h4>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"request"</span>: {
+    <span class="key">"method"</span>: <span class="str">"GET"</span>,
+    <span class="key">"urlPath"</span>: <span class="str">"/github/userinfo"</span>,
+    <span class="key">"headers"</span>: {
+      <span class="key">"Authorization"</span>: { <span class="key">"contains"</span>: <span class="str">"Bearer invalid_token"</span> }
+    }
+  },
+  <span class="key">"response"</span>: {
+    <span class="key">"status"</span>: <span class="num">401</span>,
+    <span class="key">"jsonBody"</span>: {
+      <span class="key">"message"</span>: <span class="str">"Bad credentials"</span>,
+      <span class="key">"documentation_url"</span>: <span class="str">"https://docs.github.com/rest"</span>
+    }
+  }
+}</code></pre>
+<h4 id="error-rate-limit-403">Error — Rate Limit (403)</h4>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"request"</span>: {
+    <span class="key">"method"</span>: <span class="str">"GET"</span>,
+    <span class="key">"urlPath"</span>: <span class="str">"/github/userinfo"</span>,
+    <span class="key">"headers"</span>: {
+      <span class="key">"Authorization"</span>: { <span class="key">"contains"</span>: <span class="str">"Bearer rate_limited_token"</span> }
+    }
+  },
+  <span class="key">"response"</span>: {
+    <span class="key">"status"</span>: <span class="num">403</span>,
+    <span class="key">"headers"</span>: {
+      <span class="key">"X-RateLimit-Remaining"</span>: <span class="str">"0"</span>,
+      <span class="key">"X-RateLimit-Reset"</span>: <span class="str">"1769522400"</span>
+    },
+    <span class="key">"jsonBody"</span>: {
+      <span class="key">"message"</span>: <span class="str">"API rate limit exceeded"</span>,
+      <span class="key">"documentation_url"</span>: <span class="str">"https://docs.github.com/rest/overview/resources-in-the-rest-api#rate-limiting"</span>
+    }
+  }
+}</code></pre>
+<hr/>
+<h3 id="23-apple-oauth">2.3 Apple OAuth</h3>
+<h4 id="token-exchange-success">Token Exchange — Success</h4>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"request"</span>: {
+    <span class="key">"method"</span>: <span class="str">"POST"</span>,
+    <span class="key">"urlPath"</span>: <span class="str">"/apple/token"</span>,
+    <span class="key">"bodyPatterns"</span>: [
+      { <span class="key">"contains"</span>: <span class="str">"grant_type=authorization_code"</span> },
+      { <span class="key">"contains"</span>: <span class="str">"code="</span> }
+    ]
+  },
+  <span class="key">"response"</span>: {
+    <span class="key">"status"</span>: <span class="num">200</span>,
+    <span class="key">"jsonBody"</span>: {
+      <span class="key">"access_token"</span>: <span class="str">"apple_mock_access_token_001"</span>,
+      <span class="key">"token_type"</span>: <span class="str">"Bearer"</span>,
+      <span class="key">"expires_in"</span>: <span class="num">3600</span>,
+      <span class="key">"refresh_token"</span>: <span class="str">"apple_mock_refresh_token_001"</span>,
+      <span class="key">"id_token"</span>: <span class="str">"eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJodHRwczovL2FwcGxlaWQuYXBwbGUuY29tIiwic3ViIjoiYXBwbGVfdXNlcl8wMDEiLCJlbWFpbCI6InVzZXIxQGljbG91ZC5jb20iLCJhdWQiOiJjb20uc3luYXBzZS5hcHAiLCJleHAiOjE3Njk1MjI0MDB9.mock_signature"</span>
+    }
+  }
+}</code></pre>
+<h4 id="id-token-validation-apple은-userinfo-대신-id_token에서-추출">ID Token Validation (Apple은 userinfo 대신 id_token에서 추출)</h4>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"decoded_id_token"</span>: {
+    <span class="key">"iss"</span>: <span class="str">"https://appleid.apple.com"</span>,
+    <span class="key">"sub"</span>: <span class="str">"apple_user_001"</span>,
+    <span class="key">"email"</span>: <span class="str">"user1@icloud.com"</span>,
+    <span class="key">"email_verified"</span>: <span class="kw">true</span>,
+    <span class="key">"is_private_email"</span>: <span class="kw">false</span>,
+    <span class="key">"auth_time"</span>: <span class="num">1769518800</span>
+  }
+}</code></pre>
+<h4 id="error-invalid-code-401">Error — Invalid Code (401)</h4>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"request"</span>: {
+    <span class="key">"method"</span>: <span class="str">"POST"</span>,
+    <span class="key">"urlPath"</span>: <span class="str">"/apple/token"</span>,
+    <span class="key">"bodyPatterns"</span>: [
+      { <span class="key">"contains"</span>: <span class="str">"code=invalid_code"</span> }
+    ]
+  },
+  <span class="key">"response"</span>: {
+    <span class="key">"status"</span>: <span class="num">400</span>,
+    <span class="key">"jsonBody"</span>: {
+      <span class="key">"error"</span>: <span class="str">"invalid_grant"</span>
+    }
+  }
+}</code></pre>
+<h4 id="error-invalid-client-403">Error — Invalid Client (403)</h4>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"request"</span>: {
+    <span class="key">"method"</span>: <span class="str">"POST"</span>,
+    <span class="key">"urlPath"</span>: <span class="str">"/apple/token"</span>,
+    <span class="key">"bodyPatterns"</span>: [
+      { <span class="key">"contains"</span>: <span class="str">"client_id=wrong_client"</span> }
+    ]
+  },
+  <span class="key">"response"</span>: {
+    <span class="key">"status"</span>: <span class="num">400</span>,
+    <span class="key">"jsonBody"</span>: {
+      <span class="key">"error"</span>: <span class="str">"invalid_client"</span>
+    }
+  }
+}</code></pre>
+<hr/>
+<h3 id="24-microsoft-oauth">2.4 Microsoft OAuth</h3>
+<h4 id="token-exchange-success">Token Exchange — Success</h4>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"request"</span>: {
+    <span class="key">"method"</span>: <span class="str">"POST"</span>,
+    <span class="key">"urlPath"</span>: <span class="str">"/microsoft/token"</span>,
+    <span class="key">"bodyPatterns"</span>: [
+      { <span class="key">"contains"</span>: <span class="str">"grant_type=authorization_code"</span> }
+    ]
+  },
+  <span class="key">"response"</span>: {
+    <span class="key">"status"</span>: <span class="num">200</span>,
+    <span class="key">"jsonBody"</span>: {
+      <span class="key">"access_token"</span>: <span class="str">"microsoft_mock_access_token_001"</span>,
+      <span class="key">"token_type"</span>: <span class="str">"Bearer"</span>,
+      <span class="key">"expires_in"</span>: <span class="num">3600</span>,
+      <span class="key">"refresh_token"</span>: <span class="str">"microsoft_mock_refresh_token_001"</span>,
+      <span class="key">"scope"</span>: <span class="str">"openid profile email User.Read"</span>,
+      <span class="key">"id_token"</span>: <span class="str">"eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJodHRwczovL2xvZ2luLm1pY3Jvc29mdG9ubGluZS5jb20iLCJzdWIiOiJtc191c2VyXzAwMSIsImVtYWlsIjoidXNlcjFAb3V0bG9vay5jb20iLCJuYW1lIjoi7ZmN6ri464-ZIiwiYXVkIjoiY2xpZW50X2lkIiwiZXhwIjoxNzY5NTIyNDAwfQ.mock_signature"</span>
+    }
+  }
+}</code></pre>
+<h4 id="userinfo-success">Userinfo — Success</h4>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"request"</span>: {
+    <span class="key">"method"</span>: <span class="str">"GET"</span>,
+    <span class="key">"urlPath"</span>: <span class="str">"/microsoft/userinfo"</span>,
+    <span class="key">"headers"</span>: {
+      <span class="key">"Authorization"</span>: { <span class="key">"contains"</span>: <span class="str">"Bearer microsoft_mock_access_token"</span> }
+    }
+  },
+  <span class="key">"response"</span>: {
+    <span class="key">"status"</span>: <span class="num">200</span>,
+    <span class="key">"jsonBody"</span>: {
+      <span class="key">"id"</span>: <span class="str">"ms_user_001"</span>,
+      <span class="key">"displayName"</span>: <span class="str">"홍길동"</span>,
+      <span class="key">"mail"</span>: <span class="str">"user1@outlook.com"</span>,
+      <span class="key">"userPrincipalName"</span>: <span class="str">"user1@outlook.com"</span>,
+      <span class="key">"preferredLanguage"</span>: <span class="str">"ko-KR"</span>
+    }
+  }
+}</code></pre>
+<h4 id="error-invalid-token-401">Error — Invalid Token (401)</h4>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"request"</span>: {
+    <span class="key">"method"</span>: <span class="str">"GET"</span>,
+    <span class="key">"urlPath"</span>: <span class="str">"/microsoft/userinfo"</span>,
+    <span class="key">"headers"</span>: {
+      <span class="key">"Authorization"</span>: { <span class="key">"contains"</span>: <span class="str">"Bearer invalid_ms_token"</span> }
+    }
+  },
+  <span class="key">"response"</span>: {
+    <span class="key">"status"</span>: <span class="num">401</span>,
+    <span class="key">"jsonBody"</span>: {
+      <span class="key">"error"</span>: {
+        <span class="key">"code"</span>: <span class="str">"InvalidAuthenticationToken"</span>,
+        <span class="key">"message"</span>: <span class="str">"Access token is empty."</span>
+      }
+    }
+  }
+}</code></pre>
+<h4 id="error-insufficient-permissions-403">Error — Insufficient Permissions (403)</h4>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"request"</span>: {
+    <span class="key">"method"</span>: <span class="str">"GET"</span>,
+    <span class="key">"urlPath"</span>: <span class="str">"/microsoft/userinfo"</span>,
+    <span class="key">"headers"</span>: {
+      <span class="key">"Authorization"</span>: { <span class="key">"contains"</span>: <span class="str">"Bearer no_scope_token"</span> }
+    }
+  },
+  <span class="key">"response"</span>: {
+    <span class="key">"status"</span>: <span class="num">403</span>,
+    <span class="key">"jsonBody"</span>: {
+      <span class="key">"error"</span>: {
+        <span class="key">"code"</span>: <span class="str">"Authorization_RequestDenied"</span>,
+        <span class="key">"message"</span>: <span class="str">"Insufficient privileges to complete the operation."</span>
+      }
+    }
+  }
+}</code></pre>
+<hr/>
+<h2 id="3-stripe-api-목킹">3. Stripe API 목킹</h2>
+<h3 id="31-create-checkout-session-success">3.1 Create Checkout Session — Success</h3>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"request"</span>: {
+    <span class="key">"method"</span>: <span class="str">"POST"</span>,
+    <span class="key">"urlPath"</span>: <span class="str">"/stripe/v1/checkout/sessions"</span>,
+    <span class="key">"bodyPatterns"</span>: [
+      { <span class="key">"contains"</span>: <span class="str">"mode=subscription"</span> }
+    ]
+  },
+  <span class="key">"response"</span>: {
+    <span class="key">"status"</span>: <span class="num">200</span>,
+    <span class="key">"jsonBody"</span>: {
+      <span class="key">"id"</span>: <span class="str">"cs_test_mock_001"</span>,
+      <span class="key">"object"</span>: <span class="str">"checkout.session"</span>,
+      <span class="key">"url"</span>: <span class="str">"https://checkout.stripe.com/c/pay/cs_test_mock_001"</span>,
+      <span class="key">"mode"</span>: <span class="str">"subscription"</span>,
+      <span class="key">"status"</span>: <span class="str">"open"</span>,
+      <span class="key">"customer"</span>: <span class="str">"cus_mock_001"</span>,
+      <span class="key">"subscription"</span>: <span class="kw">null</span>,
+      <span class="key">"success_url"</span>: <span class="str">"https://synapse.app/billing/success"</span>,
+      <span class="key">"cancel_url"</span>: <span class="str">"https://synapse.app/billing/cancel"</span>,
+      <span class="key">"created"</span>: <span class="num">1769518800</span>
+    }
+  }
+}</code></pre>
+<h3 id="32-customer-portal-session-success">3.2 Customer Portal Session — Success</h3>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"request"</span>: {
+    <span class="key">"method"</span>: <span class="str">"POST"</span>,
+    <span class="key">"urlPath"</span>: <span class="str">"/stripe/v1/billing_portal/sessions"</span>,
+    <span class="key">"bodyPatterns"</span>: [
+      { <span class="key">"contains"</span>: <span class="str">"customer=cus_mock"</span> }
+    ]
+  },
+  <span class="key">"response"</span>: {
+    <span class="key">"status"</span>: <span class="num">200</span>,
+    <span class="key">"jsonBody"</span>: {
+      <span class="key">"id"</span>: <span class="str">"bps_mock_001"</span>,
+      <span class="key">"object"</span>: <span class="str">"billing_portal.session"</span>,
+      <span class="key">"url"</span>: <span class="str">"https://billing.stripe.com/p/session/mock_001"</span>,
+      <span class="key">"customer"</span>: <span class="str">"cus_mock_001"</span>,
+      <span class="key">"created"</span>: <span class="num">1769518800</span>
+    }
+  }
+}</code></pre>
+<h3 id="33-list-invoices-success">3.3 List Invoices — Success</h3>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"request"</span>: {
+    <span class="key">"method"</span>: <span class="str">"GET"</span>,
+    <span class="key">"urlPath"</span>: <span class="str">"/stripe/v1/invoices"</span>,
+    <span class="key">"queryParameters"</span>: {
+      <span class="key">"customer"</span>: { <span class="key">"equalTo"</span>: <span class="str">"cus_mock_001"</span> }
+    }
+  },
+  <span class="key">"response"</span>: {
+    <span class="key">"status"</span>: <span class="num">200</span>,
+    <span class="key">"jsonBody"</span>: {
+      <span class="key">"object"</span>: <span class="str">"list"</span>,
+      <span class="key">"data"</span>: [
+        {
+          <span class="key">"id"</span>: <span class="str">"in_mock_001"</span>,
+          <span class="key">"object"</span>: <span class="str">"invoice"</span>,
+          <span class="key">"amount_due"</span>: <span class="num">999</span>,
+          <span class="key">"amount_paid"</span>: <span class="num">999</span>,
+          <span class="key">"currency"</span>: <span class="str">"usd"</span>,
+          <span class="key">"status"</span>: <span class="str">"paid"</span>,
+          <span class="key">"customer"</span>: <span class="str">"cus_mock_001"</span>,
+          <span class="key">"subscription"</span>: <span class="str">"sub_mock_001"</span>,
+          <span class="key">"period_start"</span>: <span class="num">1766926800</span>,
+          <span class="key">"period_end"</span>: <span class="num">1769518800</span>,
+          <span class="key">"created"</span>: <span class="num">1769518800</span>
+        }
+      ],
+      <span class="key">"has_more"</span>: <span class="kw">false</span>
+    }
+  }
+}</code></pre>
+<h3 id="34-webhook-checkoutsessioncompleted">3.4 Webhook — checkout.session.completed</h3>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"webhook_event"</span>: {
+    <span class="key">"id"</span>: <span class="str">"evt_mock_checkout_001"</span>,
+    <span class="key">"object"</span>: <span class="str">"event"</span>,
+    <span class="key">"type"</span>: <span class="str">"checkout.session.completed"</span>,
+    <span class="key">"created"</span>: <span class="num">1769518800</span>,
+    <span class="key">"data"</span>: {
+      <span class="key">"object"</span>: {
+        <span class="key">"id"</span>: <span class="str">"cs_test_mock_001"</span>,
+        <span class="key">"object"</span>: <span class="str">"checkout.session"</span>,
+        <span class="key">"mode"</span>: <span class="str">"subscription"</span>,
+        <span class="key">"status"</span>: <span class="str">"complete"</span>,
+        <span class="key">"customer"</span>: <span class="str">"cus_mock_001"</span>,
+        <span class="key">"subscription"</span>: <span class="str">"sub_mock_001"</span>,
+        <span class="key">"metadata"</span>: {
+          <span class="key">"tenantId"</span>: <span class="str">"tenant-00000000-0000-0000-0000-000000000001"</span>,
+          <span class="key">"planCode"</span>: <span class="str">"pro"</span>
+        }
+      }
+    }
+  }
+}</code></pre>
+<p><strong>Webhook Signature 검증 설정:</strong></p>
+<pre class="code-block" data-lang="java"><code><span class="cmt">// Stripe webhook signing secret for test</span>
+<span class="kw">private</span> <span class="kw">static</span> <span class="kw">final</span> <span class="type">String</span> STRIPE_WEBHOOK_SECRET = <span class="str">"whsec_test_mock_secret"</span>;
+
+<span class="kw">public</span> <span class="kw">static</span> <span class="type">String</span> generateStripeSignature(<span class="type">String</span> payload, <span class="type">long</span> timestamp) {
+    <span class="type">String</span> signedPayload = timestamp + <span class="str">"."</span> + payload;
+    Mac mac = Mac.getInstance(<span class="str">"HmacSHA256"</span>);
+    mac.init(<span class="kw">new</span> SecretKeySpec(STRIPE_WEBHOOK_SECRET.getBytes(), <span class="str">"HmacSHA256"</span>));
+    <span class="type">String</span> signature = Hex.encodeHexString(mac.doFinal(signedPayload.getBytes()));
+    <span class="kw">return</span> <span class="str">"t="</span> + timestamp + <span class="str">",v1="</span> + signature;
+}</code></pre>
+<h3 id="35-webhook-invoicepayment_failed">3.5 Webhook — invoice.payment_failed</h3>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"webhook_event"</span>: {
+    <span class="key">"id"</span>: <span class="str">"evt_mock_payment_fail_001"</span>,
+    <span class="key">"object"</span>: <span class="str">"event"</span>,
+    <span class="key">"type"</span>: <span class="str">"invoice.payment_failed"</span>,
+    <span class="key">"created"</span>: <span class="num">1769518800</span>,
+    <span class="key">"data"</span>: {
+      <span class="key">"object"</span>: {
+        <span class="key">"id"</span>: <span class="str">"in_mock_002"</span>,
+        <span class="key">"object"</span>: <span class="str">"invoice"</span>,
+        <span class="key">"amount_due"</span>: <span class="num">999</span>,
+        <span class="key">"amount_paid"</span>: <span class="num">0</span>,
+        <span class="key">"currency"</span>: <span class="str">"usd"</span>,
+        <span class="key">"status"</span>: <span class="str">"open"</span>,
+        <span class="key">"customer"</span>: <span class="str">"cus_mock_001"</span>,
+        <span class="key">"subscription"</span>: <span class="str">"sub_mock_001"</span>,
+        <span class="key">"attempt_count"</span>: <span class="num">1</span>,
+        <span class="key">"next_payment_attempt"</span>: <span class="num">1769605200</span>
+      }
+    }
+  }
+}</code></pre>
+<h3 id="36-webhook-customersubscriptionupdated">3.6 Webhook — customer.subscription.updated</h3>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"webhook_event"</span>: {
+    <span class="key">"id"</span>: <span class="str">"evt_mock_sub_update_001"</span>,
+    <span class="key">"object"</span>: <span class="str">"event"</span>,
+    <span class="key">"type"</span>: <span class="str">"customer.subscription.updated"</span>,
+    <span class="key">"created"</span>: <span class="num">1769518800</span>,
+    <span class="key">"data"</span>: {
+      <span class="key">"object"</span>: {
+        <span class="key">"id"</span>: <span class="str">"sub_mock_001"</span>,
+        <span class="key">"object"</span>: <span class="str">"subscription"</span>,
+        <span class="key">"status"</span>: <span class="str">"active"</span>,
+        <span class="key">"customer"</span>: <span class="str">"cus_mock_001"</span>,
+        <span class="key">"current_period_start"</span>: <span class="num">1769518800</span>,
+        <span class="key">"current_period_end"</span>: <span class="num">1772197200</span>,
+        <span class="key">"items"</span>: {
+          <span class="key">"data"</span>: [
+            {
+              <span class="key">"price"</span>: {
+                <span class="key">"id"</span>: <span class="str">"price_pro_monthly"</span>,
+                <span class="key">"product"</span>: <span class="str">"prod_pro"</span>,
+                <span class="key">"unit_amount"</span>: <span class="num">999</span>,
+                <span class="key">"currency"</span>: <span class="str">"usd"</span>,
+                <span class="key">"recurring"</span>: { <span class="key">"interval"</span>: <span class="str">"month"</span> }
+              }
+            }
+          ]
+        },
+        <span class="key">"metadata"</span>: {
+          <span class="key">"tenantId"</span>: <span class="str">"tenant-00000000-0000-0000-0000-000000000001"</span>,
+          <span class="key">"planCode"</span>: <span class="str">"pro"</span>
+        }
+      },
+      <span class="key">"previous_attributes"</span>: {
+        <span class="key">"items"</span>: {
+          <span class="key">"data"</span>: [
+            {
+              <span class="key">"price"</span>: {
+                <span class="key">"id"</span>: <span class="str">"price_free"</span>,
+                <span class="key">"product"</span>: <span class="str">"prod_free"</span>
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}</code></pre>
+<hr/>
+<h2 id="4-fcm-api-목킹">4. FCM API 목킹</h2>
+<h3 id="41-send-notification-success">4.1 Send Notification — Success</h3>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"request"</span>: {
+    <span class="key">"method"</span>: <span class="str">"POST"</span>,
+    <span class="key">"urlPath"</span>: <span class="str">"/fcm/v1/projects/synapse-mock/messages:send"</span>,
+    <span class="key">"headers"</span>: {
+      <span class="key">"Authorization"</span>: { <span class="key">"contains"</span>: <span class="str">"Bearer "</span> }
+    }
+  },
+  <span class="key">"response"</span>: {
+    <span class="key">"status"</span>: <span class="num">200</span>,
+    <span class="key">"jsonBody"</span>: {
+      <span class="key">"name"</span>: <span class="str">"projects/synapse-mock/messages/msg_mock_001"</span>
+    }
+  }
+}</code></pre>
+<p><strong>요청 fixture:</strong></p>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"message"</span>: {
+    <span class="key">"token"</span>: <span class="str">"device_token_mock_001"</span>,
+    <span class="key">"notification"</span>: {
+      <span class="key">"title"</span>: <span class="str">"레벨 업!"</span>,
+      <span class="key">"body"</span>: <span class="str">"축하합니다! 레벨 4 '학자'에 도달했습니다."</span>
+    },
+    <span class="key">"data"</span>: {
+      <span class="key">"type"</span>: <span class="str">"LEVEL_UP"</span>,
+      <span class="key">"newLevel"</span>: <span class="str">"4"</span>,
+      <span class="key">"title"</span>: <span class="str">"학자"</span>
+    },
+    <span class="key">"android"</span>: {
+      <span class="key">"priority"</span>: <span class="str">"high"</span>
+    },
+    <span class="key">"webpush"</span>: {
+      <span class="key">"headers"</span>: {
+        <span class="key">"Urgency"</span>: <span class="str">"high"</span>
+      }
+    }
+  }
+}</code></pre>
+<h3 id="42-batch-send-partial-success">4.2 Batch Send — Partial Success</h3>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"request"</span>: {
+    <span class="key">"method"</span>: <span class="str">"POST"</span>,
+    <span class="key">"urlPath"</span>: <span class="str">"/fcm/v1/projects/synapse-mock/messages:send"</span>,
+    <span class="key">"bodyPatterns"</span>: [
+      { <span class="key">"contains"</span>: <span class="str">"batch_token"</span> }
+    ]
+  },
+  <span class="key">"response"</span>: {
+    <span class="key">"status"</span>: <span class="num">200</span>,
+    <span class="key">"jsonBody"</span>: {
+      <span class="key">"name"</span>: <span class="str">"projects/synapse-mock/messages/msg_mock_batch_001"</span>
+    }
+  }
+}</code></pre>
+<h3 id="43-error-invalid-token-401">4.3 Error — Invalid Token (401)</h3>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"request"</span>: {
+    <span class="key">"method"</span>: <span class="str">"POST"</span>,
+    <span class="key">"urlPath"</span>: <span class="str">"/fcm/v1/projects/synapse-mock/messages:send"</span>,
+    <span class="key">"bodyPatterns"</span>: [
+      { <span class="key">"contains"</span>: <span class="str">"expired_device_token"</span> }
+    ]
+  },
+  <span class="key">"response"</span>: {
+    <span class="key">"status"</span>: <span class="num">404</span>,
+    <span class="key">"jsonBody"</span>: {
+      <span class="key">"error"</span>: {
+        <span class="key">"code"</span>: <span class="num">404</span>,
+        <span class="key">"message"</span>: <span class="str">"Requested entity was not found."</span>,
+        <span class="key">"status"</span>: <span class="str">"NOT_FOUND"</span>,
+        <span class="key">"details"</span>: [
+          {
+            <span class="key">"@type"</span>: <span class="str">"type.googleapis.com/google.firebase.fcm.v1.FcmError"</span>,
+            <span class="key">"errorCode"</span>: <span class="str">"UNREGISTERED"</span>
+          }
+        ]
+      }
+    }
+  }
+}</code></pre>
+<hr/>
+<h2 id="5-aws-ses-목킹">5. AWS SES 목킹</h2>
+<h3 id="51-send-email-success">5.1 Send Email — Success</h3>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"request"</span>: {
+    <span class="key">"method"</span>: <span class="str">"POST"</span>,
+    <span class="key">"urlPath"</span>: <span class="str">"/ses"</span>,
+    <span class="key">"bodyPatterns"</span>: [
+      { <span class="key">"contains"</span>: <span class="str">"Action=SendEmail"</span> }
+    ]
+  },
+  <span class="key">"response"</span>: {
+    <span class="key">"status"</span>: <span class="num">200</span>,
+    <span class="key">"headers"</span>: {
+      <span class="key">"Content-Type"</span>: <span class="str">"text/xml"</span>
+    },
+    <span class="key">"body"</span>: <span class="str">"&lt;?xml version=\"1.0\" ?&gt;&lt;SendEmailResponse xmlns=\"http://ses.amazonaws.com/doc/2010-12-01/\"&gt;&lt;SendEmailResult&gt;&lt;MessageId&gt;mock-ses-message-001&lt;/MessageId&gt;&lt;/SendEmailResult&gt;&lt;ResponseMetadata&gt;&lt;RequestId&gt;mock-ses-request-001&lt;/RequestId&gt;&lt;/ResponseMetadata&gt;&lt;/SendEmailResponse&gt;"</span>
+  }
+}</code></pre>
+<p><strong>요청 fixture:</strong></p>
+<pre class="code-block" data-lang=""><code>Action=SendEmail
+&amp;Source=noreply@synapse.app
+&amp;Destination.ToAddresses.member.1=user1@gmail.com
+&amp;Message.Subject.Data=오늘 복습할 카드가 25장 있습니다
+&amp;Message.Body.Html.Data=&lt;h1&gt;복습 리마인더&lt;/h1&gt;&lt;p&gt;프로그래밍 기초 덱에서 25장의 카드가 대기 중입니다.&lt;/p&gt;</code></pre>
+<h3 id="52-send-email-bounce">5.2 Send Email — Bounce</h3>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"request"</span>: {
+    <span class="key">"method"</span>: <span class="str">"POST"</span>,
+    <span class="key">"urlPath"</span>: <span class="str">"/ses"</span>,
+    <span class="key">"bodyPatterns"</span>: [
+      { <span class="key">"contains"</span>: <span class="str">"Action=SendEmail"</span> },
+      { <span class="key">"contains"</span>: <span class="str">"bounce@example.com"</span> }
+    ]
+  },
+  <span class="key">"response"</span>: {
+    <span class="key">"status"</span>: <span class="num">400</span>,
+    <span class="key">"headers"</span>: {
+      <span class="key">"Content-Type"</span>: <span class="str">"text/xml"</span>
+    },
+    <span class="key">"body"</span>: <span class="str">"&lt;?xml version=\"1.0\" ?&gt;&lt;ErrorResponse xmlns=\"http://ses.amazonaws.com/doc/2010-12-01/\"&gt;&lt;Error&gt;&lt;Type&gt;Sender&lt;/Type&gt;&lt;Code&gt;MessageRejected&lt;/Code&gt;&lt;Message&gt;Email address is on the suppression list&lt;/Message&gt;&lt;/Error&gt;&lt;RequestId&gt;mock-ses-error-001&lt;/RequestId&gt;&lt;/ErrorResponse&gt;"</span>
+  }
+}</code></pre>
+<h3 id="53-sns-bounce-notification">5.3 SNS Bounce Notification</h3>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"sns_notification"</span>: {
+    <span class="key">"Type"</span>: <span class="str">"Notification"</span>,
+    <span class="key">"MessageId"</span>: <span class="str">"sns-mock-001"</span>,
+    <span class="key">"TopicArn"</span>: <span class="str">"arn:aws:sns:ap-northeast-2:123456789:ses-bounces"</span>,
+    <span class="key">"Subject"</span>: <span class="str">"Amazon SES Email Event Notification"</span>,
+    <span class="key">"Message"</span>: <span class="str">"{\"notificationType\":\"Bounce\",\"bounce\":{\"bounceType\":\"Permanent\",\"bouncedRecipients\":[{\"emailAddress\":\"bounce@example.com\",\"action\":\"failed\",\"status\":\"5.1.1\",\"diagnosticCode\":\"smtp; 550 5.1.1 user unknown\"}],\"timestamp\":\"2026-01-15T10:00:00Z\",\"feedbackId\":\"mock-feedback-001\"},\"mail\":{\"timestamp\":\"2026-01-15T09:59:00Z\",\"source\":\"noreply@synapse.app\",\"messageId\":\"mock-ses-message-bounce\"}}"</span>,
+    <span class="key">"Timestamp"</span>: <span class="str">"2026-01-15T10:00:00Z"</span>
+  }
+}</code></pre>
+<hr/>
+<h2 id="6-openai-api-목킹">6. OpenAI API 목킹</h2>
+<h3 id="61-embeddings-success">6.1 Embeddings — Success</h3>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"request"</span>: {
+    <span class="key">"method"</span>: <span class="str">"POST"</span>,
+    <span class="key">"urlPath"</span>: <span class="str">"/openai/v1/embeddings"</span>,
+    <span class="key">"headers"</span>: {
+      <span class="key">"Authorization"</span>: { <span class="key">"contains"</span>: <span class="str">"Bearer "</span> }
+    }
+  },
+  <span class="key">"response"</span>: {
+    <span class="key">"status"</span>: <span class="num">200</span>,
+    <span class="key">"jsonBody"</span>: {
+      <span class="key">"object"</span>: <span class="str">"list"</span>,
+      <span class="key">"data"</span>: [
+        {
+          <span class="key">"object"</span>: <span class="str">"embedding"</span>,
+          <span class="key">"index"</span>: <span class="num">0</span>,
+          <span class="key">"embedding"</span>: [<span class="num">0.0023</span>, <span class="num">-0.0121</span>, <span class="num">0.0156</span>, <span class="num">0.0087</span>, <span class="num">-0.0203</span>, <span class="num">0.0312</span>, <span class="num">-0.0045</span>, <span class="num">0.0189</span>, <span class="num">0.0267</span>, <span class="num">-0.0134</span>, <span class="num">0.0098</span>, <span class="num">0.0211</span>, <span class="num">-0.0176</span>, <span class="num">0.0043</span>, <span class="num">0.0289</span>, <span class="num">-0.0067</span>]
+        }
+      ],
+      <span class="key">"model"</span>: <span class="str">"text-embedding-3-small"</span>,
+      <span class="key">"usage"</span>: {
+        <span class="key">"prompt_tokens"</span>: <span class="num">15</span>,
+        <span class="key">"total_tokens"</span>: <span class="num">15</span>
+      }
+    }
+  }
+}</code></pre>
+<blockquote><strong>참고</strong>: 실제 임베딩은 1536차원이지만 fixture에서는 16차원으로 축소. 테스트에서 차원 수 검증이 필요한 경우 1536차원 fixture를 별도 생성할 것.</blockquote>
+<h3 id="62-chat-completion-success-카드-생성용">6.2 Chat Completion — Success (카드 생성용)</h3>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"request"</span>: {
+    <span class="key">"method"</span>: <span class="str">"POST"</span>,
+    <span class="key">"urlPath"</span>: <span class="str">"/openai/v1/chat/completions"</span>,
+    <span class="key">"headers"</span>: {
+      <span class="key">"Authorization"</span>: { <span class="key">"contains"</span>: <span class="str">"Bearer "</span> }
+    }
+  },
+  <span class="key">"response"</span>: {
+    <span class="key">"status"</span>: <span class="num">200</span>,
+    <span class="key">"jsonBody"</span>: {
+      <span class="key">"id"</span>: <span class="str">"chatcmpl-mock-001"</span>,
+      <span class="key">"object"</span>: <span class="str">"chat.completion"</span>,
+      <span class="key">"created"</span>: <span class="num">1769518800</span>,
+      <span class="key">"model"</span>: <span class="str">"gpt-4o"</span>,
+      <span class="key">"choices"</span>: [
+        {
+          <span class="key">"index"</span>: <span class="num">0</span>,
+          <span class="key">"message"</span>: {
+            <span class="key">"role"</span>: <span class="str">"assistant"</span>,
+            <span class="key">"content"</span>: <span class="str">"[{\"cardType\":\"basic\",\"frontContent\":\"머신러닝에서 과적합(overfitting)이란 무엇인가?\",\"backContent\":\"훈련 데이터에 너무 잘 맞춰져 새로운 데이터에 대한 일반화 성능이 떨어지는 현상\",\"confidence\":0.95},{\"cardType\":\"basic\",\"frontContent\":\"과적합을 방지하기 위한 대표적인 기법 3가지는?\",\"backContent\":\"1. 정규화(Regularization) 2. 드롭아웃(Dropout) 3. 교차 검증(Cross-validation)\",\"confidence\":0.92}]"</span>
+          },
+          <span class="key">"finish_reason"</span>: <span class="str">"stop"</span>
+        }
+      ],
+      <span class="key">"usage"</span>: {
+        <span class="key">"prompt_tokens"</span>: <span class="num">500</span>,
+        <span class="key">"completion_tokens"</span>: <span class="num">200</span>,
+        <span class="key">"total_tokens"</span>: <span class="num">700</span>
+      }
+    }
+  }
+}</code></pre>
+<h3 id="63-rate-limit-error-429">6.3 Rate Limit Error (429)</h3>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"request"</span>: {
+    <span class="key">"method"</span>: <span class="str">"POST"</span>,
+    <span class="key">"urlPath"</span>: <span class="str">"/openai/v1/embeddings"</span>,
+    <span class="key">"bodyPatterns"</span>: [
+      { <span class="key">"contains"</span>: <span class="str">"rate_limit_trigger"</span> }
+    ]
+  },
+  <span class="key">"response"</span>: {
+    <span class="key">"status"</span>: <span class="num">429</span>,
+    <span class="key">"headers"</span>: {
+      <span class="key">"Retry-After"</span>: <span class="str">"30"</span>,
+      <span class="key">"X-RateLimit-Remaining-Requests"</span>: <span class="str">"0"</span>,
+      <span class="key">"X-RateLimit-Reset-Requests"</span>: <span class="str">"30s"</span>
+    },
+    <span class="key">"jsonBody"</span>: {
+      <span class="key">"error"</span>: {
+        <span class="key">"message"</span>: <span class="str">"Rate limit reached for text-embedding-3-small in organization org-mock on requests per min (RPM): Limit 3000, Used 3000, Requested 1."</span>,
+        <span class="key">"type"</span>: <span class="str">"rate_limit_error"</span>,
+        <span class="key">"param"</span>: <span class="kw">null</span>,
+        <span class="key">"code"</span>: <span class="str">"rate_limit_exceeded"</span>
+      }
+    }
+  }
+}</code></pre>
+<h3 id="64-server-error-500">6.4 Server Error (500)</h3>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"request"</span>: {
+    <span class="key">"method"</span>: <span class="str">"POST"</span>,
+    <span class="key">"urlPath"</span>: <span class="str">"/openai/v1/chat/completions"</span>,
+    <span class="key">"bodyPatterns"</span>: [
+      { <span class="key">"contains"</span>: <span class="str">"server_error_trigger"</span> }
+    ]
+  },
+  <span class="key">"response"</span>: {
+    <span class="key">"status"</span>: <span class="num">500</span>,
+    <span class="key">"jsonBody"</span>: {
+      <span class="key">"error"</span>: {
+        <span class="key">"message"</span>: <span class="str">"The server had an error while processing your request. Sorry about that!"</span>,
+        <span class="key">"type"</span>: <span class="str">"server_error"</span>,
+        <span class="key">"param"</span>: <span class="kw">null</span>,
+        <span class="key">"code"</span>: <span class="kw">null</span>
+      }
+    }
+  }
+}</code></pre>
+<hr/>
+<h2 id="7-anthropic-claude-api-목킹">7. Anthropic Claude API 목킹</h2>
+<h3 id="71-messages-success">7.1 Messages — Success</h3>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"request"</span>: {
+    <span class="key">"method"</span>: <span class="str">"POST"</span>,
+    <span class="key">"urlPath"</span>: <span class="str">"/anthropic/v1/messages"</span>,
+    <span class="key">"headers"</span>: {
+      <span class="key">"x-api-key"</span>: { <span class="key">"contains"</span>: <span class="str">"sk-ant-"</span> },
+      <span class="key">"anthropic-version"</span>: { <span class="key">"equalTo"</span>: <span class="str">"2023-06-01"</span> }
+    }
+  },
+  <span class="key">"response"</span>: {
+    <span class="key">"status"</span>: <span class="num">200</span>,
+    <span class="key">"jsonBody"</span>: {
+      <span class="key">"id"</span>: <span class="str">"msg_mock_001"</span>,
+      <span class="key">"type"</span>: <span class="str">"message"</span>,
+      <span class="key">"role"</span>: <span class="str">"assistant"</span>,
+      <span class="key">"content"</span>: [
+        {
+          <span class="key">"type"</span>: <span class="str">"text"</span>,
+          <span class="key">"text"</span>: <span class="str">"노트의 내용을 바탕으로 분석한 결과, 정규화 기법은 모델의 복잡도를 제한하여 과적합을 방지하는 기술입니다. L1 정규화(Lasso)는 가중치를 0으로 만들어 특성 선택 효과가 있으며, L2 정규화(Ridge)는 가중치를 균등하게 줄입니다."</span>
+        }
+      ],
+      <span class="key">"model"</span>: <span class="str">"claude-sonnet-4-20250514"</span>,
+      <span class="key">"stop_reason"</span>: <span class="str">"end_turn"</span>,
+      <span class="key">"usage"</span>: {
+        <span class="key">"input_tokens"</span>: <span class="num">800</span>,
+        <span class="key">"output_tokens"</span>: <span class="num">150</span>
+      }
+    }
+  }
+}</code></pre>
+<h3 id="72-rate-limit-error-429">7.2 Rate Limit Error (429)</h3>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"request"</span>: {
+    <span class="key">"method"</span>: <span class="str">"POST"</span>,
+    <span class="key">"urlPath"</span>: <span class="str">"/anthropic/v1/messages"</span>,
+    <span class="key">"bodyPatterns"</span>: [
+      { <span class="key">"contains"</span>: <span class="str">"rate_limit_trigger"</span> }
+    ]
+  },
+  <span class="key">"response"</span>: {
+    <span class="key">"status"</span>: <span class="num">429</span>,
+    <span class="key">"headers"</span>: {
+      <span class="key">"retry-after"</span>: <span class="str">"60"</span>
+    },
+    <span class="key">"jsonBody"</span>: {
+      <span class="key">"type"</span>: <span class="str">"error"</span>,
+      <span class="key">"error"</span>: {
+        <span class="key">"type"</span>: <span class="str">"rate_limit_error"</span>,
+        <span class="key">"message"</span>: <span class="str">"Number of request tokens has exceeded your per-minute rate limit."</span>
+      }
+    }
+  }
+}</code></pre>
+<h3 id="73-overloaded-error-529">7.3 Overloaded Error (529)</h3>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"request"</span>: {
+    <span class="key">"method"</span>: <span class="str">"POST"</span>,
+    <span class="key">"urlPath"</span>: <span class="str">"/anthropic/v1/messages"</span>,
+    <span class="key">"bodyPatterns"</span>: [
+      { <span class="key">"contains"</span>: <span class="str">"overloaded_trigger"</span> }
+    ]
+  },
+  <span class="key">"response"</span>: {
+    <span class="key">"status"</span>: <span class="num">529</span>,
+    <span class="key">"jsonBody"</span>: {
+      <span class="key">"type"</span>: <span class="str">"error"</span>,
+      <span class="key">"error"</span>: {
+        <span class="key">"type"</span>: <span class="str">"overloaded_error"</span>,
+        <span class="key">"message"</span>: <span class="str">"Anthropic's API is temporarily overloaded. Please try again later."</span>
+      }
+    }
+  }
+}</code></pre>
+<hr/>
+<h2 id="8-python-respx-통합-패턴">8. Python (respx) 통합 패턴</h2>
+<h3 id="81-openai-embeddings-mock">8.1 OpenAI Embeddings Mock</h3>
+<pre class="code-block" data-lang="python"><code><span class="kw">import</span> respx
+<span class="kw">import</span> httpx
+<span class="kw">import</span> json
+<span class="kw">from</span> pathlib <span class="kw">import</span> Path
+
+FIXTURE_DIR = Path(__file__).parent / <span class="str">"fixtures"</span> / <span class="str">"api_responses"</span>
+
+
+<span class="kw">def</span> load_api_fixture(name: str) -&gt; dict:
+    <span class="kw">with</span> open(FIXTURE_DIR / f<span class="str">"{name}.json"</span>) <span class="kw">as</span> f:
+        <span class="kw">return</span> json.load(f)
+
+
+<span class="anno">@respx</span>.mock
+<span class="kw">async</span> <span class="kw">def</span> test_embedding_generation():
+    fixture = load_api_fixture(<span class="str">"openai_embeddings_success"</span>)
+
+    respx.post(<span class="str">"https://api.openai.com/v1/embeddings"</span>).mock(
+        return_value=httpx.Response(<span class="num">200</span>, json=fixture)
+    )
+
+    <span class="kw">from</span> app.ai.embedding_service <span class="kw">import</span> generate_embedding
+    result = <span class="kw">await</span> generate_embedding(<span class="str">"머신러닝에서 과적합이란?"</span>)
+
+    <span class="kw">assert</span> len(result) == <span class="num">16</span>  <span class="cmt"># fixture 차원 수</span>
+    <span class="kw">assert</span> respx.calls.call_count == <span class="num">1</span></code></pre>
+<h3 id="82-claude-api-mock">8.2 Claude API Mock</h3>
+<pre class="code-block" data-lang="python"><code><span class="anno">@respx</span>.mock
+<span class="kw">async</span> <span class="kw">def</span> test_card_generation_with_claude():
+    fixture = load_api_fixture(<span class="str">"anthropic_messages_success"</span>)
+
+    respx.post(<span class="str">"https://api.anthropic.com/v1/messages"</span>).mock(
+        return_value=httpx.Response(<span class="num">200</span>, json=fixture)
+    )
+
+    <span class="kw">from</span> app.ai.card_generator <span class="kw">import</span> generate_cards
+    cards = <span class="kw">await</span> generate_cards(
+        note_id=<span class="str">"note-00000000-0000-0000-0000-000000000001"</span>,
+        card_type=<span class="str">"basic"</span>,
+        count=<span class="num">5</span>
+    )
+
+    <span class="kw">assert</span> len(cards) &gt; <span class="num">0</span>
+    <span class="kw">assert</span> cards[<span class="num">0</span>][<span class="str">"cardType"</span>] == <span class="str">"basic"</span></code></pre>
+<h3 id="83-rate-limit-retry-mock">8.3 Rate Limit + Retry Mock</h3>
+<pre class="code-block" data-lang="python"><code><span class="anno">@respx</span>.mock
+<span class="kw">async</span> <span class="kw">def</span> test_openai_rate_limit_retry():
+    rate_limit_fixture = load_api_fixture(<span class="str">"openai_rate_limit_429"</span>)
+    success_fixture = load_api_fixture(<span class="str">"openai_embeddings_success"</span>)
+
+    route = respx.post(<span class="str">"https://api.openai.com/v1/embeddings"</span>)
+    route.side_effect = [
+        httpx.Response(<span class="num">429</span>, json=rate_limit_fixture,
+                       headers={<span class="str">"Retry-After"</span>: <span class="str">"1"</span>}),
+        httpx.Response(<span class="num">200</span>, json=success_fixture),
+    ]
+
+    <span class="kw">from</span> app.ai.embedding_service <span class="kw">import</span> generate_embedding_with_retry
+    result = <span class="kw">await</span> generate_embedding_with_retry(<span class="str">"테스트 텍스트"</span>)
+
+    <span class="kw">assert</span> result is <span class="kw">not</span> <span class="kw">None</span>
+    <span class="kw">assert</span> respx.calls.call_count == <span class="num">2</span>  <span class="cmt"># 1번 실패 + 1번 성공</span></code></pre>
+<hr/>
+<h2 id="9-외부-api-의존성-매트릭스">9. 외부 API 의존성 매트릭스</h2>
+<table class="md-table"><thead><tr><th>외부 API</th><th>사용 서비스</th><th>목적</th><th>WireMock 매핑 수</th></tr></thead><tbody><tr><td>Google OAuth</td><td>platform-svc / auth</td><td>로그인/가입</td><td>4</td></tr><tr><td>GitHub OAuth</td><td>platform-svc / auth</td><td>로그인/가입</td><td>4</td></tr><tr><td>Apple OAuth</td><td>platform-svc / auth</td><td>로그인/가입</td><td>4</td></tr><tr><td>Microsoft OAuth</td><td>platform-svc / auth</td><td>로그인/가입</td><td>4</td></tr><tr><td>Stripe API</td><td>platform-svc / billing</td><td>결제/구독</td><td>6</td></tr><tr><td>FCM</td><td>platform-svc / notification</td><td>푸시 알림</td><td>3</td></tr><tr><td>AWS SES</td><td>platform-svc / notification</td><td>이메일</td><td>3</td></tr><tr><td>OpenAI API</td><td>learning-svc / learning-ai</td><td>임베딩/생성</td><td>4</td></tr><tr><td>Anthropic Claude</td><td>learning-svc / learning-ai</td><td>RAG/생성</td><td>3</td></tr><tr><td><strong>합계</strong></td><td></td><td></td><td><strong>35</strong></td></tr></tbody></table>
+
+  </main>
+  <footer class="doc-footer">
+    <span>Synapse · Mocking Docs v1.0 · 2026-05-14</span>
+    <a href="https://github.com/team-project-final/documents/blob/main/docs/mocking/07-external-api-mocking.md" target="_blank" rel="noopener">edit on GitHub →</a>
+  </footer>
+</div>
+</body>
+</html>

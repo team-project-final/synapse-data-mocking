@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>03 · Knowledge Service — Synapse Mocking Docs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="doc-style.css" />
+</head>
+<body>
+<div class="doc-shell">
+  <header class="doc-header">
+    <div class="doc-header-meta">
+      <span class="doc-idx">DOC 03</span>
+      <span class="doc-en">knowledge-svc</span>
+    </div>
+    <h1 class="doc-h1">Knowledge Service</h1>
+    <div class="doc-links">
+      <a class="doc-link" href="https://github.com/team-project-final/documents/blob/main/docs/mocking/03-knowledge-svc-mocking.md" target="_blank" rel="noopener">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        GitHub 원본 보기
+      </a>
+      <a class="doc-link" href="https://github.com/team-project-final/documents/raw/main/docs/mocking/03-knowledge-svc-mocking.md" target="_blank" rel="noopener">📥 raw .md 다운로드</a>
+    </div>
+  </header>
+  <main class="doc-body">
+<h1 id="knowledge-service-목킹-정의서">Knowledge Service 목킹 정의서</h1>
+<blockquote><strong>프로젝트</strong>: Synapse — 통합 학습-지식 그래프 SaaS <strong>서비스</strong>: synapse-knowledge-svc <strong>Owner</strong>: <code>@knowledge-owner-1</code> (김현지), <code>@knowledge-owner-2</code> (박은서) <strong>모듈</strong>: note, graph, chunking <strong>작성일</strong>: 2026-05-14</blockquote>
+<hr/>
+<h2 id="1-서비스-의존성-맵">1. 서비스 의존성 맵</h2>
+<div class="mermaid-block"><div class="mermaid-label">mermaid diagram</div><pre class="code-block"><code>graph LR
+    subgraph knowledge-svc
+        NOTE[note 모듈]
+        GRAPH[graph 모듈]
+        CHUNK[chunking 모듈]
+    end
+
+    subgraph External
+        S3[AWS S3]
+        LEARNING_AI["learning-ai&lt;br/&gt;임베딩 API"]
+    end
+
+    subgraph Infrastructure
+        PG[(PostgreSQL&lt;br/&gt;+ pgvector)]
+        ES[(Elasticsearch&lt;br/&gt;+ nori)]
+        KAFKA[Kafka]
+    end
+
+    NOTE --&gt; PG
+    NOTE --&gt; ES
+    NOTE --&gt; S3
+    NOTE --&gt;|Producer: 3 topics| KAFKA
+    NOTE --&gt;|Consumer: user.deleted| KAFKA
+
+    GRAPH --&gt; PG
+    GRAPH --&gt;|Producer: graph.notes.linked| KAFKA
+
+    CHUNK --&gt; LEARNING_AI
+    CHUNK --&gt; PG</code></pre></div>
+<hr/>
+<h2 id="2-note-모듈">2. note 모듈</h2>
+<h3 id="21-목킹-인터페이스-목록">2.1 목킹 인터페이스 목록</h3>
+<table class="md-table"><thead><tr><th>#</th><th>목킹 대상</th><th>통신 방식</th><th>방향</th><th>도구</th></tr></thead><tbody><tr><td>1</td><td>Elasticsearch (인덱싱 + 검색)</td><td>REST</td><td>Outbound</td><td>Testcontainers</td></tr><tr><td>2</td><td>AWS S3 (Presigned URL)</td><td>REST</td><td>Outbound</td><td>WireMock</td></tr><tr><td>3</td><td>Kafka Producer (3개 토픽)</td><td>Kafka</td><td>Outbound</td><td>EmbeddedKafka</td></tr><tr><td>4</td><td>Kafka Consumer (<code>user.deleted</code>)</td><td>Kafka</td><td>Inbound</td><td>EmbeddedKafka</td></tr><tr><td>5</td><td>PostgreSQL (notes, note_versions, note_links, note_tags)</td><td>SQL</td><td>Outbound</td><td>Testcontainers</td></tr></tbody></table>
+<h3 id="22-elasticsearch-testcontainers">2.2 Elasticsearch Testcontainers</h3>
+<pre class="code-block" data-lang="java"><code><span class="anno">@Container</span>
+<span class="kw">static</span> ElasticsearchContainer elasticsearch = <span class="kw">new</span> ElasticsearchContainer(
+    DockerImageName.parse(<span class="str">"docker.elastic.co/elasticsearch/elasticsearch:8.13.0"</span>)
+)
+    .withEnv(<span class="str">"discovery.type"</span>, <span class="str">"single-node"</span>)
+    .withEnv(<span class="str">"xpack.security.enabled"</span>, <span class="str">"false"</span>)
+    .withEnv(<span class="str">"ES_JAVA_OPTS"</span>, <span class="str">"-Xms512m -Xmx512m"</span>);</code></pre>
+<p><strong>인덱스 매핑 (nori analyzer):</strong></p>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"settings"</span>: {
+    <span class="key">"analysis"</span>: {
+      <span class="key">"analyzer"</span>: {
+        <span class="key">"korean"</span>: {
+          <span class="key">"type"</span>: <span class="str">"custom"</span>,
+          <span class="key">"tokenizer"</span>: <span class="str">"nori_tokenizer"</span>,
+          <span class="key">"filter"</span>: [<span class="str">"nori_readingform"</span>, <span class="str">"lowercase"</span>]
+        }
+      }
+    }
+  },
+  <span class="key">"mappings"</span>: {
+    <span class="key">"properties"</span>: {
+      <span class="key">"noteId"</span>: { <span class="key">"type"</span>: <span class="str">"keyword"</span> },
+      <span class="key">"tenantId"</span>: { <span class="key">"type"</span>: <span class="str">"keyword"</span> },
+      <span class="key">"userId"</span>: { <span class="key">"type"</span>: <span class="str">"keyword"</span> },
+      <span class="key">"title"</span>: {
+        <span class="key">"type"</span>: <span class="str">"text"</span>,
+        <span class="key">"analyzer"</span>: <span class="str">"korean"</span>,
+        <span class="key">"fields"</span>: { <span class="key">"keyword"</span>: { <span class="key">"type"</span>: <span class="str">"keyword"</span> } }
+      },
+      <span class="key">"content"</span>: { <span class="key">"type"</span>: <span class="str">"text"</span>, <span class="key">"analyzer"</span>: <span class="str">"korean"</span> },
+      <span class="key">"tags"</span>: { <span class="key">"type"</span>: <span class="str">"keyword"</span> },
+      <span class="key">"createdAt"</span>: { <span class="key">"type"</span>: <span class="str">"date"</span> },
+      <span class="key">"updatedAt"</span>: { <span class="key">"type"</span>: <span class="str">"date"</span> }
+    }
+  }
+}</code></pre>
+<p><strong>검색 테스트:</strong></p>
+<pre class="code-block" data-lang="java"><code><span class="anno">@Test</span>
+<span class="kw">void</span> searchNotes_withKoreanQuery_shouldReturnResults() {
+    <span class="cmt">// given — ES에 노트 인덱싱</span>
+    indexNote(<span class="str">"note-00000000-0000-0000-0000-000000000001"</span>,
+        <span class="str">"머신러닝 기초 정리"</span>, <span class="str">"머신러닝은 인공지능의 한 분야로..."</span>, <span class="type">List</span>.of(<span class="str">"머신러닝"</span>, <span class="str">"AI"</span>));
+
+    <span class="cmt">// when</span>
+    mockMvc.perform(<span class="kw">get</span>(<span class="str">"/notes/search"</span>)
+            .param(<span class="str">"q"</span>, <span class="str">"머신러닝"</span>)
+            .param(<span class="str">"sort"</span>, <span class="str">"relevance"</span>)
+            .header(<span class="str">"Authorization"</span>, <span class="str">"Bearer "</span> + JwtTestFactory.USER1_TOKEN))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath(<span class="str">"$.data"</span>).isArray())
+        .andExpect(jsonPath(<span class="str">"$.data[0].title"</span>).value(<span class="str">"머신러닝 기초 정리"</span>));
+}</code></pre>
+<h3 id="23-aws-s3-mock-presigned-url">2.3 AWS S3 Mock (Presigned URL)</h3>
+<h4 id="wiremock-매핑-presigned-url-생성">WireMock 매핑 — Presigned URL 생성</h4>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"request"</span>: {
+    <span class="key">"method"</span>: <span class="str">"PUT"</span>,
+    <span class="key">"urlPathPattern"</span>: <span class="str">"/s3-mock/synapse-attachments/.*"</span>
+  },
+  <span class="key">"response"</span>: {
+    <span class="key">"status"</span>: <span class="num">200</span>,
+    <span class="key">"headers"</span>: {
+      <span class="key">"ETag"</span>: <span class="str">"\"mock-etag-001\""</span>
+    }
+  }
+}</code></pre>
+<p><strong>Presigned URL 응답 fixture:</strong></p>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"data"</span>: {
+    <span class="key">"uploadUrl"</span>: <span class="str">"http://localhost:${wiremock.server.port}/s3-mock/synapse-attachments/tenant-00000000-0000-0000-0000-000000000001/note-00000000-0000-0000-0000-000000000001/attachment-001.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Expires=3600"</span>,
+    <span class="key">"fileKey"</span>: <span class="str">"tenant-00000000-0000-0000-0000-000000000001/note-00000000-0000-0000-0000-000000000001/attachment-001.png"</span>,
+    <span class="key">"expiresIn"</span>: <span class="num">3600</span>
+  }
+}</code></pre>
+<p><strong>application-test.yml (S3 섹션):</strong></p>
+<pre class="code-block" data-lang="yaml"><code><span class="key">aws</span>:
+  <span class="key">s3</span>:
+    <span class="key">endpoint-url</span>: http://localhost:${wiremock.server.port}/s3-mock
+    <span class="key">bucket-name</span>: synapse-attachments
+    <span class="key">region</span>: ap-northeast-<span class="num">2</span>
+    <span class="key">access-key</span>: mock_access_key
+    <span class="key">secret-key</span>: mock_secret_key
+    <span class="key">presigned-url-expiry</span>: <span class="num">3600</span></code></pre>
+<h3 id="24-kafka-producer-검증">2.4 Kafka Producer 검증</h3>
+<pre class="code-block" data-lang="java"><code><span class="anno">@Test</span>
+<span class="kw">void</span> createNote_shouldPublishNoteCreatedEvent() {
+    <span class="type">String</span> requestBody = <span class="str">""</span>"
+        {
+            <span class="str">"title"</span>: <span class="str">"새로운 노트"</span>,
+            <span class="str">"content"</span>: <span class="str">"# 내용\\n\\n[[다른노트]] 참조"</span>,
+            <span class="str">"tags"</span>: [<span class="str">"테스트"</span>]
+        }
+        <span class="str">""</span>";
+
+    mockMvc.perform(post(<span class="str">"/notes"</span>)
+            .header(<span class="str">"Authorization"</span>, <span class="str">"Bearer "</span> + JwtTestFactory.USER1_TOKEN)
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(requestBody))
+        .andExpect(status().isCreated());
+
+    <span class="type">List</span>&lt;<span class="type">ConsumerRecord</span>&lt;<span class="type">String</span>, Object&gt;&gt; records =
+        kafkaTestHelper.consumeMessages(<span class="str">"note.created"</span>, <span class="num">1</span>, <span class="type">Duration</span>.ofSeconds(<span class="num">5</span>));
+    assertThat(records).hasSize(<span class="num">1</span>);
+}
+
+<span class="anno">@Test</span>
+<span class="kw">void</span> updateNote_shouldPublishNoteUpdatedEvent() {
+    <span class="type">String</span> requestBody = <span class="str">""</span>"
+        {<span class="str">"title"</span>: <span class="str">"수정된 제목"</span>, <span class="str">"content"</span>: <span class="str">"수정된 내용"</span>}
+        <span class="str">""</span>";
+
+    mockMvc.perform(patch(<span class="str">"/notes/note-00000000-0000-0000-0000-000000000001"</span>)
+            .header(<span class="str">"Authorization"</span>, <span class="str">"Bearer "</span> + JwtTestFactory.USER1_TOKEN)
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(requestBody))
+        .andExpect(status().isOk());
+
+    <span class="type">List</span>&lt;<span class="type">ConsumerRecord</span>&lt;<span class="type">String</span>, Object&gt;&gt; records =
+        kafkaTestHelper.consumeMessages(<span class="str">"note.updated"</span>, <span class="num">1</span>, <span class="type">Duration</span>.ofSeconds(<span class="num">5</span>));
+    assertThat(records).hasSize(<span class="num">1</span>);
+}
+
+<span class="anno">@Test</span>
+<span class="kw">void</span> deleteNote_shouldPublishNoteDeletedEvent() {
+    mockMvc.perform(delete(<span class="str">"/notes/note-00000000-0000-0000-0000-000000000001"</span>)
+            .header(<span class="str">"Authorization"</span>, <span class="str">"Bearer "</span> + JwtTestFactory.USER1_TOKEN))
+        .andExpect(status().isNoContent());
+
+    <span class="type">List</span>&lt;<span class="type">ConsumerRecord</span>&lt;<span class="type">String</span>, Object&gt;&gt; records =
+        kafkaTestHelper.consumeMessages(<span class="str">"note.deleted"</span>, <span class="num">1</span>, <span class="type">Duration</span>.ofSeconds(<span class="num">5</span>));
+    assertThat(records).hasSize(<span class="num">1</span>);
+}</code></pre>
+<h3 id="25-위키링크-파싱-테스트-데이터">2.5 위키링크 파싱 테스트 데이터</h3>
+<pre class="code-block" data-lang="java"><code><span class="cmt">// 테스트 입력 → 기대 결과</span>
+record WikilinkTestCase(<span class="type">String</span> input, <span class="type">List</span>&lt;<span class="type">String</span>&gt; expectedLinks) {}
+
+<span class="kw">static</span> <span class="type">List</span>&lt;WikilinkTestCase&gt; wikilinkTestCases() {
+    <span class="kw">return</span> <span class="type">List</span>.of(
+        <span class="cmt">// 기본 위키링크</span>
+        <span class="kw">new</span> WikilinkTestCase(
+            <span class="str">"이것은 [[다른노트]] 입니다"</span>,
+            <span class="type">List</span>.of(<span class="str">"다른노트"</span>)
+        ),
+        <span class="cmt">// 복수 위키링크</span>
+        <span class="kw">new</span> WikilinkTestCase(
+            <span class="str">"[[노트A]]와 [[노트B]]를 참조"</span>,
+            <span class="type">List</span>.of(<span class="str">"노트A"</span>, <span class="str">"노트B"</span>)
+        ),
+        <span class="cmt">// 중첩 불가 (가장 안쪽만)</span>
+        <span class="kw">new</span> WikilinkTestCase(
+            <span class="str">"[[외부[[내부]]]]"</span>,
+            <span class="type">List</span>.of(<span class="str">"내부"</span>)
+        ),
+        <span class="cmt">// 빈 위키링크 무시</span>
+        <span class="kw">new</span> WikilinkTestCase(
+            <span class="str">"[[]] 빈 링크"</span>,
+            <span class="type">List</span>.of()
+        ),
+        <span class="cmt">// 코드 블록 내 위키링크 무시</span>
+        <span class="kw">new</span> WikilinkTestCase(
+            <span class="str">"```\n[[코드내링크]]\n```\n[[실제링크]]"</span>,
+            <span class="type">List</span>.of(<span class="str">"실제링크"</span>)
+        )
+    );
+}</code></pre>
+<h3 id="26-kafka-consumer-userdeleted-처리">2.6 Kafka Consumer — <code>user.deleted</code> 처리</h3>
+<pre class="code-block" data-lang="java"><code><span class="anno">@Test</span>
+<span class="kw">void</span> userDeleted_shouldSoftDeleteAllUserNotes() {
+    <span class="cmt">// given — user1의 노트가 DB에 존재</span>
+    <span class="type">String</span> fixture = <span class="str">""</span>"
+        {
+            <span class="str">"specversion"</span>: <span class="str">"1.0"</span>,
+            <span class="str">"type"</span>: <span class="str">"user.deleted"</span>,
+            <span class="str">"data"</span>: {
+                <span class="str">"userId"</span>: <span class="str">"user-00000000-0000-0000-0000-000000000001"</span>,
+                <span class="str">"tenantId"</span>: <span class="str">"tenant-00000000-0000-0000-0000-000000000001"</span>
+            }
+        }
+        <span class="str">""</span>";
+
+    <span class="cmt">// when</span>
+    kafkaTestHelper.publishAndWait(<span class="str">"user.deleted"</span>, <span class="str">"key-1"</span>, fixture, <span class="type">Duration</span>.ofSeconds(<span class="num">5</span>));
+
+    <span class="cmt">// then — 해당 사용자 노트가 soft delete</span>
+    Long activeCount = jdbcTemplate.queryForObject(
+        <span class="str">"SELECT COUNT(*) FROM notes WHERE user_id = ? AND deleted_at IS NULL"</span>,
+        Long.<span class="kw">class</span>, <span class="str">"user-00000000-0000-0000-0000-000000000001"</span>
+    );
+    assertThat(activeCount).isEqualTo(<span class="num">0</span>);
+}</code></pre>
+<h3 id="27-postgresql-시드-데이터">2.7 PostgreSQL 시드 데이터</h3>
+<pre class="code-block" data-lang="sql"><code><span class="cmt">-- knowledge_note_seed.sql</span>
+
+<span class="cmt">-- Notes</span>
+<span class="kw">INSERT</span> <span class="kw">INTO</span> notes (id, tenant_id, user_id, title, content, word_count, deleted_at, created_at, updated_at) <span class="kw">VALUES</span>
+(<span class="str">'note-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'tenant-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'user-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'머신러닝 기초 정리'</span>, <span class="str">'# 머신러닝\n\n[[딥러닝 기초]] 참조\n\n머신러닝은 인공지능의 한 분야로, 데이터에서 패턴을 학습하는 기술이다.'</span>, <span class="num">25</span>, <span class="kw">NULL</span>, <span class="str">'2026-01-15T10:00:00Z'</span>, <span class="str">'2026-01-15T10:00:00Z'</span>),
+(<span class="str">'note-00000000-0000-0000-0000-000000000002'</span>, <span class="str">'tenant-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'user-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'딥러닝 기초'</span>, <span class="str">'# 딥러닝\n\n[[머신러닝 기초 정리]] 의 하위 분야이다.'</span>, <span class="num">15</span>, <span class="kw">NULL</span>, <span class="str">'2026-01-15T10:01:00Z'</span>, <span class="str">'2026-01-15T10:01:00Z'</span>),
+(<span class="str">'note-00000000-0000-0000-0000-000000000003'</span>, <span class="str">'tenant-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'user-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'딥러닝 완전 정복 가이드'</span>, <span class="str">'매우 긴 노트 내용...'</span>, <span class="num">10000</span>, <span class="kw">NULL</span>, <span class="str">'2026-01-15T10:02:00Z'</span>, <span class="str">'2026-01-15T10:02:00Z'</span>);
+
+<span class="cmt">-- Note Links (위키링크 관계)</span>
+<span class="kw">INSERT</span> <span class="kw">INTO</span> note_links (id, source_note_id, target_note_id, tenant_id, created_at) <span class="kw">VALUES</span>
+(<span class="str">'nl-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'note-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'note-00000000-0000-0000-0000-000000000002'</span>, <span class="str">'tenant-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'2026-01-15T10:00:00Z'</span>),
+(<span class="str">'nl-00000000-0000-0000-0000-000000000002'</span>, <span class="str">'note-00000000-0000-0000-0000-000000000002'</span>, <span class="str">'note-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'tenant-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'2026-01-15T10:01:00Z'</span>);
+
+<span class="cmt">-- Note Versions</span>
+<span class="kw">INSERT</span> <span class="kw">INTO</span> note_versions (id, note_id, version_number, title, content, created_at) <span class="kw">VALUES</span>
+(<span class="str">'nv-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'note-00000000-0000-0000-0000-000000000001'</span>, <span class="num">1</span>, <span class="str">'머신러닝 기초 정리'</span>, <span class="str">'# 머신러닝\n\n초기 내용'</span>, <span class="str">'2026-01-15T10:00:00Z'</span>);
+
+<span class="cmt">-- Note Tags</span>
+<span class="kw">INSERT</span> <span class="kw">INTO</span> note_tags (note_id, tag) <span class="kw">VALUES</span>
+(<span class="str">'note-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'머신러닝'</span>),
+(<span class="str">'note-00000000-0000-0000-0000-000000000001'</span>, <span class="str">'AI'</span>),
+(<span class="str">'note-00000000-0000-0000-0000-000000000002'</span>, <span class="str">'딥러닝'</span>);</code></pre>
+<hr/>
+<h2 id="3-graph-모듈">3. graph 모듈</h2>
+<h3 id="31-목킹-인터페이스-목록">3.1 목킹 인터페이스 목록</h3>
+<table class="md-table"><thead><tr><th>#</th><th>목킹 대상</th><th>통신 방식</th><th>방향</th><th>도구</th></tr></thead><tbody><tr><td>1</td><td>PostgreSQL (그래프 쿼리)</td><td>SQL</td><td>Outbound</td><td>Testcontainers</td></tr><tr><td>2</td><td>Kafka Producer (<code>graph.notes.linked</code>)</td><td>Kafka</td><td>Outbound</td><td>EmbeddedKafka</td></tr></tbody></table>
+<h3 id="32-d3-시각화-데이터-응답-fixture">3.2 D3 시각화 데이터 응답 fixture</h3>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"success"</span>: <span class="kw">true</span>,
+  <span class="key">"data"</span>: {
+    <span class="key">"nodes"</span>: [
+      {
+        <span class="key">"id"</span>: <span class="str">"note-00000000-0000-0000-0000-000000000001"</span>,
+        <span class="key">"title"</span>: <span class="str">"머신러닝 기초 정리"</span>,
+        <span class="key">"linkCount"</span>: <span class="num">2</span>,
+        <span class="key">"pageRank"</span>: <span class="num">0.85</span>,
+        <span class="key">"tags"</span>: [<span class="str">"머신러닝"</span>, <span class="str">"AI"</span>]
+      },
+      {
+        <span class="key">"id"</span>: <span class="str">"note-00000000-0000-0000-0000-000000000002"</span>,
+        <span class="key">"title"</span>: <span class="str">"딥러닝 기초"</span>,
+        <span class="key">"linkCount"</span>: <span class="num">1</span>,
+        <span class="key">"pageRank"</span>: <span class="num">0.65</span>,
+        <span class="key">"tags"</span>: [<span class="str">"딥러닝"</span>]
+      },
+      {
+        <span class="key">"id"</span>: <span class="str">"note-00000000-0000-0000-0000-000000000003"</span>,
+        <span class="key">"title"</span>: <span class="str">"딥러닝 완전 정복 가이드"</span>,
+        <span class="key">"linkCount"</span>: <span class="num">0</span>,
+        <span class="key">"pageRank"</span>: <span class="num">0.15</span>,
+        <span class="key">"tags"</span>: []
+      }
+    ],
+    <span class="key">"edges"</span>: [
+      {
+        <span class="key">"source"</span>: <span class="str">"note-00000000-0000-0000-0000-000000000001"</span>,
+        <span class="key">"target"</span>: <span class="str">"note-00000000-0000-0000-0000-000000000002"</span>,
+        <span class="key">"type"</span>: <span class="str">"wikilink"</span>
+      },
+      {
+        <span class="key">"source"</span>: <span class="str">"note-00000000-0000-0000-0000-000000000002"</span>,
+        <span class="key">"target"</span>: <span class="str">"note-00000000-0000-0000-0000-000000000001"</span>,
+        <span class="key">"type"</span>: <span class="str">"wikilink"</span>
+      }
+    ]
+  },
+  <span class="key">"meta"</span>: {
+    <span class="key">"timestamp"</span>: <span class="str">"2026-01-15T10:00:00Z"</span>,
+    <span class="key">"requestId"</span>: <span class="str">"req-00000000-0000-0000-0000-000000000001"</span>
+  }
+}</code></pre>
+<h3 id="33-nhop-이웃-테스트">3.3 N-hop 이웃 테스트</h3>
+<pre class="code-block" data-lang="java"><code><span class="anno">@Test</span>
+<span class="kw">void</span> getNeighbors_2hop_shouldReturnTransitiveLinks() {
+    <span class="cmt">// given — A→B→C 링크 체인</span>
+    <span class="cmt">// when</span>
+    mockMvc.perform(<span class="kw">get</span>(<span class="str">"/graph/neighbors/note-00000000-0000-0000-0000-000000000001"</span>)
+            .param(<span class="str">"hops"</span>, <span class="str">"2"</span>)
+            .header(<span class="str">"Authorization"</span>, <span class="str">"Bearer "</span> + JwtTestFactory.USER1_TOKEN))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath(<span class="str">"$.data.nodes"</span>).isArray())
+        .andExpect(jsonPath(<span class="str">"$.data.nodes.length()"</span>).value(<span class="num">2</span>));  <span class="cmt">// B, C</span>
+}</code></pre>
+<hr/>
+<h2 id="4-chunking-모듈">4. chunking 모듈</h2>
+<h3 id="41-목킹-인터페이스-목록">4.1 목킹 인터페이스 목록</h3>
+<table class="md-table"><thead><tr><th>#</th><th>목킹 대상</th><th>통신 방식</th><th>방향</th><th>도구</th></tr></thead><tbody><tr><td>1</td><td>learning-ai 임베딩 API</td><td>REST</td><td>Outbound</td><td>WireMock</td></tr><tr><td>2</td><td>PostgreSQL + pgvector (벡터 저장)</td><td>SQL</td><td>Outbound</td><td>Testcontainers</td></tr></tbody></table>
+<h3 id="42-learningai-임베딩-api-wiremock">4.2 learning-ai 임베딩 API WireMock</h3>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"request"</span>: {
+    <span class="key">"method"</span>: <span class="str">"POST"</span>,
+    <span class="key">"urlPath"</span>: <span class="str">"/internal/embeddings"</span>,
+    <span class="key">"headers"</span>: {
+      <span class="key">"Content-Type"</span>: { <span class="key">"equalTo"</span>: <span class="str">"application/json"</span> }
+    }
+  },
+  <span class="key">"response"</span>: {
+    <span class="key">"status"</span>: <span class="num">200</span>,
+    <span class="key">"jsonBody"</span>: {
+      <span class="key">"embeddings"</span>: [
+        [<span class="num">0.0023</span>, <span class="num">-0.0121</span>, <span class="num">0.0156</span>, <span class="num">0.0087</span>, <span class="num">-0.0203</span>, <span class="num">0.0312</span>, <span class="num">-0.0045</span>, <span class="num">0.0189</span>, <span class="num">0.0267</span>, <span class="num">-0.0134</span>, <span class="num">0.0098</span>, <span class="num">0.0211</span>, <span class="num">-0.0176</span>, <span class="num">0.0043</span>, <span class="num">0.0289</span>, <span class="num">-0.0067</span>]
+      ],
+      <span class="key">"model"</span>: <span class="str">"text-embedding-3-small"</span>,
+      <span class="key">"usage"</span>: { <span class="key">"totalTokens"</span>: <span class="num">45</span> }
+    }
+  }
+}</code></pre>
+<p><strong>요청 fixture:</strong></p>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"texts"</span>: [
+    <span class="str">"머신러닝은 인공지능의 한 분야로, 데이터에서 패턴을 학습하는 기술이다."</span>,
+    <span class="str">"과적합을 방지하기 위해 정규화, 드롭아웃, 교차 검증 등의 기법을 사용한다."</span>
+  ],
+  <span class="key">"model"</span>: <span class="str">"text-embedding-3-small"</span>
+}</code></pre>
+<p><strong>application-test.yml:</strong></p>
+<pre class="code-block" data-lang="yaml"><code><span class="key">internal</span>:
+  <span class="key">learning-ai</span>:
+    <span class="key">base-url</span>: http://localhost:${wiremock.server.port}
+    <span class="key">embedding-endpoint</span>: /internal/embeddings</code></pre>
+<h3 id="43-pgvector-testcontainers">4.3 pgvector Testcontainers</h3>
+<pre class="code-block" data-lang="java"><code><span class="anno">@Container</span>
+<span class="kw">static</span> PostgreSQLContainer&lt;?&gt; postgres = <span class="kw">new</span> PostgreSQLContainer&lt;&gt;(
+    DockerImageName.parse(<span class="str">"pgvector/pgvector:pg16"</span>)
+)
+    .withDatabaseName(<span class="str">"synapse_knowledge_test"</span>)
+    .withUsername(<span class="str">"synapse"</span>)
+    .withPassword(<span class="str">"test_password"</span>)
+    .withInitScript(<span class="str">"db/knowledge_init.sql"</span>);</code></pre>
+<p><strong>pgvector 초기화 SQL:</strong></p>
+<pre class="code-block" data-lang="sql"><code><span class="cmt">-- knowledge_init.sql</span>
+<span class="kw">CREATE</span> <span class="kw">EXTENSION</span> <span class="kw">IF</span> <span class="kw">NOT</span> <span class="kw">EXISTS</span> <span class="kw">vector</span>;
+
+<span class="kw">CREATE</span> <span class="kw">TABLE</span> <span class="kw">IF</span> <span class="kw">NOT</span> <span class="kw">EXISTS</span> note_chunks (
+    id <span class="kw">UUID</span> <span class="kw">PRIMARY</span> <span class="kw">KEY</span> <span class="kw">DEFAULT</span> <span class="type">gen_random_uuid</span>(),
+    tenant_id <span class="kw">UUID</span> <span class="kw">NOT</span> <span class="kw">NULL</span>,
+    note_id <span class="kw">UUID</span> <span class="kw">NOT</span> <span class="kw">NULL</span>,
+    chunk_index <span class="kw">INTEGER</span> <span class="kw">NOT</span> <span class="kw">NULL</span>,
+    chunk_text <span class="kw">TEXT</span> <span class="kw">NOT</span> <span class="kw">NULL</span>,
+    embedding <span class="kw">vector</span>(<span class="num">1536</span>),
+    token_count <span class="kw">INTEGER</span>,
+    created_at <span class="kw">TIMESTAMPTZ</span> <span class="kw">NOT</span> <span class="kw">NULL</span> <span class="kw">DEFAULT</span> <span class="type">NOW</span>()
+);
+
+<span class="kw">CREATE</span> <span class="kw">INDEX</span> <span class="kw">IF</span> <span class="kw">NOT</span> <span class="kw">EXISTS</span> idx_note_chunks_embedding
+    <span class="kw">ON</span> note_chunks USING ivfflat (embedding vector_cosine_ops)
+    WITH (lists = <span class="num">100</span>);</code></pre>
+<h3 id="44-비동기-청크-분할-테스트">4.4 비동기 청크 분할 테스트</h3>
+<pre class="code-block" data-lang="java"><code><span class="anno">@Test</span>
+<span class="kw">void</span> chunkNote_longContent_shouldSplitIntoMultipleChunks() {
+    <span class="cmt">// given — 50,000자 노트</span>
+    <span class="type">String</span> longContent = <span class="str">"머신러닝 "</span>.repeat(<span class="num">10000</span>);
+
+    <span class="cmt">// when — 청킹 실행</span>
+    <span class="type">List</span>&lt;Chunk&gt; chunks = chunkingService.splitIntoChunks(longContent, <span class="num">500</span>);
+
+    <span class="cmt">// then</span>
+    assertThat(chunks).hasSizeGreaterThan(<span class="num">1</span>);
+    chunks.forEach(chunk -&gt; {
+        assertThat(chunk.tokenCount()).isLessThanOrEqualTo(<span class="num">500</span>);
+        assertThat(chunk.text()).isNotBlank();
+    });
+}
+
+<span class="anno">@Test</span>
+<span class="kw">void</span> chunkNote_shouldGenerateEmbeddingsAndStore() {
+    <span class="cmt">// given — WireMock으로 임베딩 API 목킹 설정 완료</span>
+    stubFor(post(urlPathEqualTo(<span class="str">"/internal/embeddings"</span>))
+        .willReturn(okJson(loadFixture(<span class="str">"fixtures/embedding_response.json"</span>))));
+
+    <span class="cmt">// when</span>
+    chunkingService.processNote(<span class="str">"note-00000000-0000-0000-0000-000000000003"</span>);
+
+    <span class="cmt">// then — pgvector에 청크 + 벡터 저장 확인</span>
+    Long chunkCount = jdbcTemplate.queryForObject(
+        <span class="str">"SELECT COUNT(*) FROM note_chunks WHERE note_id = ?"</span>,
+        Long.<span class="kw">class</span>, <span class="str">"note-00000000-0000-0000-0000-000000000003"</span>
+    );
+    assertThat(chunkCount).isGreaterThan(<span class="num">0</span>);
+}</code></pre>
+<hr/>
+<h2 id="5-applicationtestyml-전체">5. application-test.yml (전체)</h2>
+<pre class="code-block" data-lang="yaml"><code><span class="key">spring</span>:
+  <span class="key">profiles</span>:
+    <span class="key">active</span>: test
+  <span class="key">datasource</span>:
+    <span class="key">url</span>: ${SPRING_DATASOURCE_URL}
+    <span class="key">username</span>: ${SPRING_DATASOURCE_USERNAME}
+    <span class="key">password</span>: ${SPRING_DATASOURCE_PASSWORD}
+  <span class="key">jpa</span>:
+    <span class="key">hibernate</span>:
+      <span class="key">ddl-auto</span>: create-drop
+    <span class="key">show-sql</span>: <span class="kw">true</span>
+  <span class="key">elasticsearch</span>:
+    <span class="key">uris</span>: ${ELASTICSEARCH_URL}
+  <span class="key">kafka</span>:
+    <span class="key">bootstrap-servers</span>: ${spring.embedded.kafka.brokers}
+    <span class="key">consumer</span>:
+      <span class="key">auto-offset-reset</span>: earliest
+      <span class="key">group-id</span>: knowledge-test-group
+    <span class="key">properties</span>:
+      <span class="key">schema.registry.url</span>: mock://test-schema-registry
+
+<span class="key">aws</span>:
+  <span class="key">s3</span>:
+    <span class="key">endpoint-url</span>: http://localhost:${wiremock.server.port}/s3-mock
+    <span class="key">bucket-name</span>: synapse-attachments
+    <span class="key">region</span>: ap-northeast-<span class="num">2</span>
+    <span class="key">access-key</span>: mock_access_key
+    <span class="key">secret-key</span>: mock_secret_key
+
+<span class="key">internal</span>:
+  <span class="key">learning-ai</span>:
+    <span class="key">base-url</span>: http://localhost:${wiremock.server.port}
+    <span class="key">embedding-endpoint</span>: /internal/embeddings
+
+<span class="key">jwt</span>:
+  <span class="key">secret</span>: test-jwt-secret-key-must-be-at-least-<span class="num">256</span>-bits-long-for-hs256</code></pre>
+
+  </main>
+  <footer class="doc-footer">
+    <span>Synapse · Mocking Docs v1.0 · 2026-05-14</span>
+    <a href="https://github.com/team-project-final/documents/blob/main/docs/mocking/03-knowledge-svc-mocking.md" target="_blank" rel="noopener">edit on GitHub →</a>
+  </footer>
+</div>
+</body>
+</html>

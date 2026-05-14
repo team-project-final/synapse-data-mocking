@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>00 · 목킹 전략 — Synapse Mocking Docs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="doc-style.css" />
+</head>
+<body>
+<div class="doc-shell">
+  <header class="doc-header">
+    <div class="doc-header-meta">
+      <span class="doc-idx">DOC 00</span>
+      <span class="doc-en">Mocking Strategy</span>
+    </div>
+    <h1 class="doc-h1">목킹 전략</h1>
+    <div class="doc-links">
+      <a class="doc-link" href="https://github.com/team-project-final/documents/blob/main/docs/mocking/00-mocking-strategy.md" target="_blank" rel="noopener">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        GitHub 원본 보기
+      </a>
+      <a class="doc-link" href="https://github.com/team-project-final/documents/raw/main/docs/mocking/00-mocking-strategy.md" target="_blank" rel="noopener">📥 raw .md 다운로드</a>
+    </div>
+  </header>
+  <main class="doc-body">
+<h1 id="목킹-전략서-mocking-strategy">목킹 전략서 (Mocking Strategy)</h1>
+<blockquote><strong>프로젝트</strong>: Synapse — 통합 학습-지식 그래프 SaaS <strong>버전</strong>: v1.0 <strong>작성일</strong>: 2026-05-14 <strong>대상</strong>: 전 서비스 개발자 + 팀 리드</blockquote>
+<hr/>
+<h2 id="1-목킹-원칙">1. 목킹 원칙</h2>
+<h3 id="11-테스트-피라미드-내-위치">1.1 테스트 피라미드 내 위치</h3>
+<pre class="code-block" data-lang=""><code>        ╱╲
+       ╱ E2E ╲          실제 인프라 (staging 환경)
+      ╱────────╲
+     ╱ Integration ╲    Testcontainers (실제 DB/Redis/ES 경량 인스턴스)
+    ╱────────────────╲
+   ╱   Unit / Service  ╲  WireMock + EmbeddedKafka + Mock 객체
+  ╱──────────────────────╲</code></pre>
+<h3 id="12-격리-기준">1.2 격리 기준</h3>
+<table class="md-table"><thead><tr><th>테스트 레벨</th><th>목킹 대상</th><th>도구</th><th>속도</th></tr></thead><tbody><tr><td>Unit</td><td>같은 모듈 내 의존성</td><td>Mockito (Java/Dart), unittest.mock (Python)</td><td>&lt; 100ms</td></tr><tr><td>Service Integration</td><td>외부 서비스 API, Kafka, 외부 API</td><td>WireMock, EmbeddedKafka</td><td>&lt; 5s</td></tr><tr><td>Infra Integration</td><td>DB, Redis, Elasticsearch</td><td>Testcontainers</td><td>&lt; 30s</td></tr><tr><td>Contract</td><td>서비스 간 API 계약</td><td>Spring Cloud Contract</td><td>&lt; 10s</td></tr><tr><td>E2E</td><td>없음 (실제 환경)</td><td>—</td><td>&lt; 60s</td></tr></tbody></table>
+<h3 id="13-핵심-원칙">1.3 핵심 원칙</h3>
+<ol><li><strong>실제에 가깝게</strong>: Mock보다 Testcontainers를 우선. DB/Redis/ES는 항상 실제 인스턴스.</li><li><strong>외부만 격리</strong>: 외부 API(Stripe, OAuth, FCM, OpenAI)는 항상 WireMock으로 격리.</li><li><strong>서비스 간 = 계약</strong>: 서비스 간 통신은 Spring Cloud Contract로 계약 검증.</li><li><strong>Kafka = 실제 토픽</strong>: EmbeddedKafka로 실제 직렬화/역직렬화 검증 (Avro 포함).</li><li><strong>Fixture 일관성</strong>: 모든 fixture는 동일한 시드 데이터 규약을 따름.</li></ol>
+<hr/>
+<h2 id="2-도구-스택-매트릭스">2. 도구 스택 매트릭스</h2>
+<h3 id="21-javaspring-boot-서비스-platform-engagement-knowledge-learningcard">2.1 Java/Spring Boot 서비스 (platform, engagement, knowledge, learning-card)</h3>
+<table class="md-table"><thead><tr><th>도구</th><th>의존성</th><th>용도</th></tr></thead><tbody><tr><td><strong>WireMock</strong></td><td><code>org.wiremock:wiremock-standalone:3.5.4</code></td><td>외부 REST API mock (Stripe, OAuth, FCM, SES, OpenAI) + 서비스 간 Internal API mock</td></tr><tr><td><strong>EmbeddedKafka</strong></td><td><code>org.springframework.kafka:spring-kafka-test</code></td><td>Kafka Producer/Consumer 테스트, Avro 직렬화 검증</td></tr><tr><td><strong>Testcontainers</strong></td><td><code>org.testcontainers:testcontainers:1.19.8</code></td><td>PostgreSQL, Redis, Elasticsearch 실제 인스턴스</td></tr><tr><td><strong>Spring Cloud Contract</strong></td><td><code>org.springframework.cloud:spring-cloud-contract-verifier:4.1.3</code></td><td>Producer-Consumer API 계약 검증</td></tr><tr><td><strong>Mockito</strong></td><td><code>org.mockito:mockito-core:5.12.0</code></td><td>Unit 테스트 내부 의존성 mock</td></tr></tbody></table>
+<p><strong>Gradle 의존성 (공통):</strong></p>
+<pre class="code-block" data-lang="kotlin"><code><span class="cmt">// build.gradle.kts — testImplementation</span>
+dependencies {
+    testImplementation(<span class="str">"org.springframework.boot:spring-boot-starter-test"</span>)
+    testImplementation(<span class="str">"org.springframework.kafka:spring-kafka-test"</span>)
+    testImplementation(<span class="str">"org.testcontainers:testcontainers:1.19.8"</span>)
+    testImplementation(<span class="str">"org.testcontainers:postgresql:1.19.8"</span>)
+    testImplementation(<span class="str">"org.testcontainers:kafka:1.19.8"</span>)
+    testImplementation(<span class="str">"org.wiremock:wiremock-standalone:3.5.4"</span>)
+    testImplementation(<span class="str">"org.springframework.cloud:spring-cloud-contract-stub-runner:4.1.3"</span>)
+}</code></pre>
+<h3 id="22-pythonfastapi-서비스-learningai">2.2 Python/FastAPI 서비스 (learning-ai)</h3>
+<table class="md-table"><thead><tr><th>도구</th><th>패키지</th><th>용도</th></tr></thead><tbody><tr><td><strong>pytest</strong></td><td><code>pytest==8.2.0</code></td><td>테스트 프레임워크</td></tr><tr><td><strong>httpx + AsyncClient</strong></td><td><code>httpx==0.27.0</code></td><td>FastAPI 테스트 클라이언트</td></tr><tr><td><strong>respx</strong></td><td><code>respx==0.21.1</code></td><td>httpx 기반 외부 API mock (OpenAI, Claude)</td></tr><tr><td><strong>fakeredis</strong></td><td><code>fakeredis[lua]==2.23.0</code></td><td>Redis mock (시맨틱 캐시)</td></tr><tr><td><strong>testcontainers-python</strong></td><td><code>testcontainers==4.4.0</code></td><td>PostgreSQL + pgvector, Elasticsearch</td></tr><tr><td><strong>unittest.mock</strong></td><td>(stdlib)</td><td>내부 의존성 mock</td></tr><tr><td><strong>confluent-kafka mock</strong></td><td><code>confluent-kafka==2.4.0</code> + <code>pytest-kafka</code></td><td>Kafka Consumer/Producer 테스트</td></tr></tbody></table>
+<p><strong>pyproject.toml (dev dependencies):</strong></p>
+<pre class="code-block" data-lang="toml"><code>[tool.poetry.group.dev.dependencies]
+pytest = "^8.2.0"
+pytest-asyncio = "^0.23.7"
+httpx = "^0.27.0"
+respx = "^0.21.1"
+fakeredis = {extras = ["lua"], version = "^2.23.0"}
+testcontainers = "^4.4.0"
+pytest-kafka = "^0.6.0"</code></pre>
+<h3 id="23-flutter-프론트엔드">2.3 Flutter 프론트엔드</h3>
+<table class="md-table"><thead><tr><th>도구</th><th>패키지</th><th>용도</th></tr></thead><tbody><tr><td><strong>Mockito</strong></td><td><code>mockito: ^5.4.4</code></td><td>Repository/Provider mock</td></tr><tr><td><strong>dio mock adapter</strong></td><td><code>dio_mock_interceptor: ^2.0.0</code></td><td>HTTP 호출 mock</td></tr><tr><td><strong>build_runner</strong></td><td><code>build_runner: ^2.4.9</code></td><td>Mockito code generation</td></tr><tr><td><strong>mocktail</strong></td><td><code>mocktail: ^1.0.3</code></td><td>대안 mock (code-gen 불필요)</td></tr></tbody></table>
+<p><strong>pubspec.yaml (dev_dependencies):</strong></p>
+<pre class="code-block" data-lang="yaml"><code><span class="key">dev_dependencies</span>:
+  <span class="key">flutter_test</span>:
+    <span class="key">sdk</span>: flutter
+  <span class="key">mockito</span>: ^<span class="num">5.4</span>.<span class="num">4</span>
+  <span class="key">build_runner</span>: ^<span class="num">2.4</span>.<span class="num">9</span>
+  <span class="key">dio_mock_interceptor</span>: ^<span class="num">2.0</span>.<span class="num">0</span>
+  <span class="key">mocktail</span>: ^<span class="num">1.0</span>.<span class="num">3</span></code></pre>
+<hr/>
+<h2 id="3-공통-규약">3. 공통 규약</h2>
+<h3 id="31-시드-id-체계">3.1 시드 ID 체계</h3>
+<p>모든 fixture에서 사용하는 고정 UUID:</p>
+<pre class="code-block" data-lang=""><code># Tenant
+tenant-00000000-0000-0000-0000-000000000001  (기본 테넌트)
+tenant-00000000-0000-0000-0000-000000000002  (Team 플랜 테넌트)
+
+# Users
+user-00000000-0000-0000-0000-000000000001   (일반 사용자 — Free)
+user-00000000-0000-0000-0000-000000000002   (Pro 사용자)
+user-00000000-0000-0000-0000-000000000003   (Team Owner)
+user-00000000-0000-0000-0000-000000000004   (Team Member)
+user-00000000-0000-0000-0000-000000000005   (Admin)
+
+# Notes
+note-00000000-0000-0000-0000-000000000001   (기본 노트)
+note-00000000-0000-0000-0000-000000000002   (위키링크 대상 노트)
+note-00000000-0000-0000-0000-000000000003   (긴 노트 — 청킹 대상)
+
+# Decks
+deck-00000000-0000-0000-0000-000000000001   (기본 덱)
+deck-00000000-0000-0000-0000-000000000002   (공유 덱)
+
+# Cards
+card-00000000-0000-0000-0000-000000000001   (basic 카드)
+card-00000000-0000-0000-0000-000000000002   (cloze 카드)
+card-00000000-0000-0000-0000-000000000003   (AI 생성 카드)
+
+# Groups
+group-00000000-0000-0000-0000-000000000001  (기본 그룹)
+group-00000000-0000-0000-0000-000000000002  (비공개 그룹)
+
+# Sessions
+session-00000000-0000-0000-0000-000000000001 (복습 세션)</code></pre>
+<h3 id="32-시간-고정-전략">3.2 시간 고정 전략</h3>
+<table class="md-table"><thead><tr><th>용도</th><th>고정 시각</th><th>설명</th></tr></thead><tbody><tr><td>기준 시각</td><td><code>2026-01-15T10:00:00Z</code></td><td>모든 fixture의 <code>createdAt</code> 기본값</td></tr><tr><td>오늘 due</td><td><code>2026-01-15</code></td><td>SRS 오늘 복습 대상</td></tr><tr><td>내일 due</td><td><code>2026-01-16</code></td><td>SRS 미래 복습</td></tr><tr><td>어제 due</td><td><code>2026-01-14</code></td><td>SRS 과거 (overdue)</td></tr><tr><td>스트릭 시작</td><td><code>2026-01-08</code></td><td>7일 스트릭 시작일</td></tr></tbody></table>
+<p><strong>Java 시간 고정:</strong></p>
+<pre class="code-block" data-lang="java"><code><span class="anno">@BeforeEach</span>
+<span class="kw">void</span> fixClock() {
+    Clock fixedClock = Clock.fixed(
+        <span class="type">Instant</span>.parse(<span class="str">"2026-01-15T10:00:00Z"</span>),
+        ZoneId.of(<span class="str">"UTC"</span>)
+    );
+    <span class="cmt">// 서비스에 Clock 주입</span>
+}</code></pre>
+<p><strong>Python 시간 고정:</strong></p>
+<pre class="code-block" data-lang="python"><code><span class="kw">import</span> freezegun
+
+<span class="anno">@freezegun</span>.freeze_time(<span class="str">"2026-01-15T10:00:00Z"</span>)
+<span class="kw">def</span> test_something():
+    ...</code></pre>
+<p><strong>Dart 시간 고정:</strong></p>
+<pre class="code-block" data-lang="dart"><code>withClock(Clock.fixed(DateTime.utc(<span class="num">2026</span>, <span class="num">1</span>, <span class="num">15</span>, <span class="num">10</span>, <span class="num">0</span>, <span class="num">0</span>)), () {
+  <span class="cmt">// 테스트 코드</span>
+});</code></pre>
+<h3 id="33-공통-응답-래퍼">3.3 공통 응답 래퍼</h3>
+<p>모든 mock response는 Synapse API 공통 형식을 따름:</p>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"success"</span>: <span class="kw">true</span>,
+  <span class="key">"data"</span>: { <span class="str">"..."</span> },
+  <span class="key">"meta"</span>: {
+    <span class="key">"timestamp"</span>: <span class="str">"2026-01-15T10:00:00Z"</span>,
+    <span class="key">"requestId"</span>: <span class="str">"req-00000000-0000-0000-0000-000000000001"</span>
+  }
+}</code></pre>
+<p>에러 응답:</p>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"success"</span>: <span class="kw">false</span>,
+  <span class="key">"error"</span>: {
+    <span class="key">"code"</span>: <span class="str">"ERROR_CODE"</span>,
+    <span class="key">"message"</span>: <span class="str">"에러 메시지"</span>,
+    <span class="key">"details"</span>: []
+  },
+  <span class="key">"meta"</span>: {
+    <span class="key">"timestamp"</span>: <span class="str">"2026-01-15T10:00:00Z"</span>,
+    <span class="key">"requestId"</span>: <span class="str">"req-00000000-0000-0000-0000-000000000001"</span>
+  }
+}</code></pre>
+<h3 id="34-fixture-네이밍-컨벤션">3.4 Fixture 네이밍 컨벤션</h3>
+<table class="md-table"><thead><tr><th>유형</th><th>패턴</th><th>예시</th></tr></thead><tbody><tr><td>WireMock 매핑</td><td><code>{service}_{module}_{operation}_{scenario}_mapping.json</code></td><td><code>platform_auth_oauth_google_success_mapping.json</code></td></tr><tr><td>WireMock 응답</td><td><code>{service}_{module}_{operation}_{scenario}_response.json</code></td><td><code>platform_auth_oauth_google_success_response.json</code></td></tr><tr><td>Kafka fixture</td><td><code>{topic_name}_{scenario}.avro.json</code></td><td><code>note_created_success.avro.json</code></td></tr><tr><td>DB 시드</td><td><code>{service}_{module}_seed.sql</code></td><td><code>engagement_gamification_seed.sql</code></td></tr><tr><td>Dart mock</td><td><code>mock_{service}_{module}_responses.dart</code></td><td><code>mock_learning_cards_responses.dart</code></td></tr></tbody></table>
+<h3 id="35-fixture-파일-위치-실제-프로젝트-내">3.5 Fixture 파일 위치 (실제 프로젝트 내)</h3>
+<pre class="code-block" data-lang=""><code># Java 서비스
+src/test/resources/
+├── wiremock/
+│   ├── mappings/       # WireMock 매핑 JSON
+│   └── __files/        # WireMock 응답 body
+├── fixtures/
+│   ├── kafka/          # Kafka 이벤트 fixture
+│   └── db/             # DB 시드 SQL
+└── application-test.yml
+
+# Python 서비스
+tests/
+├── fixtures/
+│   ├── kafka/          # Kafka 이벤트 fixture
+│   ├── api_responses/  # 외부 API mock 응답
+│   └── db/             # DB 시드 데이터
+└── conftest.py
+
+# Flutter
+test/
+├── fixtures/
+│   └── responses/      # Mock API 응답 JSON
+├── mocks/              # Generated mock classes
+└── helpers/            # Test utility functions</code></pre>
+<hr/>
+<h2 id="4-환경별-적용-가이드">4. 환경별 적용 가이드</h2>
+<h3 id="41-로컬-개발-환경">4.1 로컬 개발 환경</h3>
+<p><strong>docker-compose.mock.yml:</strong></p>
+<pre class="code-block" data-lang="yaml"><code><span class="key">version</span>: <span class="str">"3.9"</span>
+<span class="key">services</span>:
+  <span class="key">wiremock</span>:
+    <span class="key">image</span>: wiremock/wiremock:<span class="num">3.5</span>.<span class="num">4</span>
+    <span class="key">ports</span>:
+      - <span class="str">"8090:8080"</span>
+    <span class="key">volumes</span>:
+      - ./wiremock:/home/wiremock
+    <span class="key">command</span>: --verbose --global-response-templating
+
+  <span class="key">postgres</span>:
+    <span class="key">image</span>: pgvector/pgvector:pg16
+    <span class="key">ports</span>:
+      - <span class="str">"5432:5432"</span>
+    <span class="key">environment</span>:
+      <span class="key">POSTGRES_DB</span>: synapse_test
+      <span class="key">POSTGRES_USER</span>: synapse
+      <span class="key">POSTGRES_PASSWORD</span>: test_password
+
+  <span class="key">redis</span>:
+    <span class="key">image</span>: redis:<span class="num">7</span>-alpine
+    <span class="key">ports</span>:
+      - <span class="str">"6379:6379"</span>
+
+  <span class="key">elasticsearch</span>:
+    <span class="key">image</span>: docker.elastic.co/elasticsearch/elasticsearch:<span class="num">8.13</span>.<span class="num">0</span>
+    <span class="key">ports</span>:
+      - <span class="str">"9200:9200"</span>
+    <span class="key">environment</span>:
+      - discovery.type=single-node
+      - xpack.security.enabled=<span class="kw">false</span>
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+
+  <span class="key">kafka</span>:
+    <span class="key">image</span>: confluentinc/cp-kafka:<span class="num">7.6</span>.<span class="num">1</span>
+    <span class="key">ports</span>:
+      - <span class="str">"9092:9092"</span>
+    <span class="key">environment</span>:
+      <span class="key">KAFKA_BROKER_ID</span>: <span class="num">1</span>
+      <span class="key">KAFKA_ZOOKEEPER_CONNECT</span>: zookeeper:<span class="num">2181</span>
+      <span class="key">KAFKA_ADVERTISED_LISTENERS</span>: PLAINTEXT://localhost:<span class="num">9092</span>
+      <span class="key">KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR</span>: <span class="num">1</span>
+
+  <span class="key">zookeeper</span>:
+    <span class="key">image</span>: confluentinc/cp-zookeeper:<span class="num">7.6</span>.<span class="num">1</span>
+    <span class="key">ports</span>:
+      - <span class="str">"2181:2181"</span>
+    <span class="key">environment</span>:
+      <span class="key">ZOOKEEPER_CLIENT_PORT</span>: <span class="num">2181</span>
+
+  <span class="key">schema-registry</span>:
+    <span class="key">image</span>: confluentinc/cp-schema-registry:<span class="num">7.6</span>.<span class="num">1</span>
+    <span class="key">ports</span>:
+      - <span class="str">"8081:8081"</span>
+    <span class="key">environment</span>:
+      <span class="key">SCHEMA_REGISTRY_HOST_NAME</span>: schema-registry
+      <span class="key">SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS</span>: kafka:<span class="num">9092</span></code></pre>
+<p><strong>실행:</strong></p>
+<pre class="code-block" data-lang="bash"><code><span class="kw">docker</span> compose -f <span class="kw">docker</span>-compose.mock.yml up -d</code></pre>
+<h3 id="42-ci-환경-github-actions">4.2 CI 환경 (GitHub Actions)</h3>
+<pre class="code-block" data-lang="yaml"><code><span class="cmt"># .github/workflows/test.yml</span>
+<span class="key">jobs</span>:
+  <span class="key">test</span>:
+    <span class="key">runs-on</span>: ubuntu-latest
+    <span class="key">services</span>:
+      <span class="key">postgres</span>:
+        <span class="key">image</span>: pgvector/pgvector:pg16
+        <span class="key">env</span>:
+          <span class="key">POSTGRES_DB</span>: synapse_test
+          <span class="key">POSTGRES_USER</span>: synapse
+          <span class="key">POSTGRES_PASSWORD</span>: test_password
+        <span class="key">ports</span>:
+          - <span class="num">5432</span>:<span class="num">5432</span>
+        <span class="key">options</span>: &gt;-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries <span class="num">5</span>
+
+    <span class="key">steps</span>:
+      - uses: actions/checkout@v4
+      - name: Run tests with Testcontainers
+        <span class="key">run</span>: ./gradlew test
+        <span class="key">env</span>:
+          <span class="key">TESTCONTAINERS_REUSE_ENABLE</span>: <span class="kw">true</span>
+          <span class="key">SPRING_PROFILES_ACTIVE</span>: test</code></pre>
+<h3 id="43-통합-테스트-환경-spring-cloud-contract">4.3 통합 테스트 환경 (Spring Cloud Contract)</h3>
+<p><strong>Stub Runner 설정 (Consumer 측):</strong></p>
+<pre class="code-block" data-lang="yaml"><code><span class="cmt"># application-contract-test.yml</span>
+<span class="key">stubrunner</span>:
+  <span class="key">ids</span>:
+    - com.synapse:learning-card:+:stubs:<span class="num">8091</span>
+  <span class="key">stubs-mode</span>: LOCAL</code></pre>
+<p><strong>Producer 측 Contract 정의:</strong></p>
+<pre class="code-block" data-lang="groovy"><code><span class="cmt">// learning-card/src/test/resources/contracts/copyDeck.groovy</span>
+Contract.make {
+    request {
+        method POST()
+        url <span class="str">"/internal/decks/copy"</span>
+        headers {
+            contentType applicationJson()
+        }
+        body([
+            sourceDeckId: anyUuid(),
+            targetUserId: anyUuid(),
+            targetTenantId: anyUuid()
+        ])
+    }
+    response {
+        status CREATED()
+        headers {
+            contentType applicationJson()
+        }
+        body([
+            copiedDeckId: anyUuid(),
+            cardCount: anyPositiveInt()
+        ])
+    }
+}</code></pre>
+<hr/>
+<h2 id="5-wiremock-공통-설정">5. WireMock 공통 설정</h2>
+<h3 id="51-spring-boot-통합">5.1 Spring Boot 통합</h3>
+<pre class="code-block" data-lang="java"><code><span class="anno">@SpringBootTest</span>
+<span class="anno">@AutoConfigureWireMock</span>(port = <span class="num">0</span>)  <span class="cmt">// 랜덤 포트</span>
+<span class="kw">public</span> <span class="kw">abstract</span> <span class="kw">class</span> AbstractWireMockTest {
+
+    <span class="anno">@Autowired</span>
+    <span class="kw">protected</span> WireMockServer wireMockServer;
+
+    <span class="anno">@DynamicPropertySource</span>
+    <span class="kw">static</span> <span class="kw">void</span> overrideProperties(DynamicPropertyRegistry registry) {
+        registry.add(<span class="str">"external.oauth.google.base-url"</span>,
+            () -&gt; <span class="str">"http://localhost:"</span> + wireMockServer.port());
+        registry.add(<span class="str">"external.stripe.base-url"</span>,
+            () -&gt; <span class="str">"http://localhost:"</span> + wireMockServer.port());
+        <span class="cmt">// ... 기타 외부 API base URL</span>
+    }
+
+    <span class="anno">@BeforeEach</span>
+    <span class="kw">void</span> resetWireMock() {
+        wireMockServer.resetAll();
+    }
+}</code></pre>
+<h3 id="52-standalone-실행-로컬-개발">5.2 Standalone 실행 (로컬 개발)</h3>
+<pre class="code-block" data-lang="bash"><code><span class="cmt"># WireMock standalone 실행</span>
+<span class="kw">java</span> -jar wiremock-standalone-3.5.4.jar \
+  --port 8090 \
+  --root-dir ./wiremock \
+  --verbose \
+  --global-response-templating</code></pre>
+<hr/>
+<h2 id="6-testcontainers-공통-설정">6. Testcontainers 공통 설정</h2>
+<h3 id="61-java-베이스-클래스">6.1 Java 베이스 클래스</h3>
+<pre class="code-block" data-lang="java"><code><span class="anno">@Testcontainers</span>
+<span class="anno">@SpringBootTest</span>
+<span class="kw">public</span> <span class="kw">abstract</span> <span class="kw">class</span> AbstractIntegrationTest {
+
+    <span class="anno">@Container</span>
+    <span class="kw">static</span> PostgreSQLContainer&lt;?&gt; postgres = <span class="kw">new</span> PostgreSQLContainer&lt;&gt;(
+        DockerImageName.parse(<span class="str">"pgvector/pgvector:pg16"</span>)
+    )
+        .withDatabaseName(<span class="str">"synapse_test"</span>)
+        .withUsername(<span class="str">"synapse"</span>)
+        .withPassword(<span class="str">"test_password"</span>)
+        .withInitScript(<span class="str">"db/init.sql"</span>);
+
+    <span class="anno">@Container</span>
+    <span class="kw">static</span> GenericContainer&lt;?&gt; redis = <span class="kw">new</span> GenericContainer&lt;&gt;(
+        DockerImageName.parse(<span class="str">"redis:7-alpine"</span>)
+    )
+        .withExposedPorts(<span class="num">6379</span>);
+
+    <span class="anno">@DynamicPropertySource</span>
+    <span class="kw">static</span> <span class="kw">void</span> configureProperties(DynamicPropertyRegistry registry) {
+        registry.add(<span class="str">"spring.datasource.url"</span>, postgres::getJdbcUrl);
+        registry.add(<span class="str">"spring.datasource.username"</span>, postgres::getUsername);
+        registry.add(<span class="str">"spring.datasource.password"</span>, postgres::getPassword);
+        registry.add(<span class="str">"spring.data.redis.host"</span>, redis::getHost);
+        registry.add(<span class="str">"spring.data.redis.port"</span>, () -&gt; redis.getMappedPort(<span class="num">6379</span>));
+    }
+}</code></pre>
+<h3 id="62-python-베이스-conftestpy">6.2 Python 베이스 (conftest.py)</h3>
+<pre class="code-block" data-lang="python"><code><span class="kw">import</span> pytest
+<span class="kw">from</span> testcontainers.postgres <span class="kw">import</span> PostgresContainer
+<span class="kw">from</span> testcontainers.elasticsearch <span class="kw">import</span> ElasticSearchContainer
+
+<span class="anno">@pytest</span>.fixture(scope=<span class="str">"session"</span>)
+<span class="kw">def</span> postgres_container():
+    <span class="kw">with</span> PostgresContainer(<span class="str">"pgvector/pgvector:pg16"</span>) <span class="kw">as</span> pg:
+        <span class="kw">yield</span> pg
+
+<span class="anno">@pytest</span>.fixture(scope=<span class="str">"session"</span>)
+<span class="kw">def</span> es_container():
+    <span class="kw">with</span> ElasticSearchContainer(<span class="str">"elasticsearch:8.13.0"</span>) <span class="kw">as</span> es:
+        <span class="kw">yield</span> es</code></pre>
+<hr/>
+<h2 id="7-문서-참조-맵">7. 문서 참조 맵</h2>
+<table class="md-table"><thead><tr><th>문서</th><th>참조 대상</th></tr></thead><tbody><tr><td><code>01-platform-svc-mocking.md</code></td><td>→ 06 (Kafka), → 07 (OAuth, Stripe, FCM, SES)</td></tr><tr><td><code>02-engagement-svc-mocking.md</code></td><td>→ 06 (Kafka), → 04 (Internal API contract)</td></tr><tr><td><code>03-knowledge-svc-mocking.md</code></td><td>→ 06 (Kafka), → 07 (S3)</td></tr><tr><td><code>04-learning-svc-mocking.md</code></td><td>→ 06 (Kafka), → 07 (OpenAI, Claude)</td></tr><tr><td><code>05-frontend-mocking.md</code></td><td>→ 01~04 (API 응답 형식 참조)</td></tr><tr><td><code>06-kafka-event-mocking.md</code></td><td>→ synapse-shared 레포 Avro 스키마</td></tr><tr><td><code>07-external-api-mocking.md</code></td><td>(독립)</td></tr></tbody></table>
+
+  </main>
+  <footer class="doc-footer">
+    <span>Synapse · Mocking Docs v1.0 · 2026-05-14</span>
+    <a href="https://github.com/team-project-final/documents/blob/main/docs/mocking/00-mocking-strategy.md" target="_blank" rel="noopener">edit on GitHub →</a>
+  </footer>
+</div>
+</body>
+</html>
