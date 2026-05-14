@@ -962,6 +962,84 @@ FIXTURE_DIR = Path(__file__).parent / <span class="str">"fixtures"</span> / <spa
 <h2 id="9-외부-api-의존성-매트릭스">9. 외부 API 의존성 매트릭스</h2>
 <table class="md-table"><thead><tr><th>외부 API</th><th>사용 서비스</th><th>목적</th><th>WireMock 매핑 수</th></tr></thead><tbody><tr><td>Google OAuth</td><td>platform-svc / auth</td><td>로그인/가입</td><td>4</td></tr><tr><td>GitHub OAuth</td><td>platform-svc / auth</td><td>로그인/가입</td><td>4</td></tr><tr><td>Apple OAuth</td><td>platform-svc / auth</td><td>로그인/가입</td><td>4</td></tr><tr><td>Microsoft OAuth</td><td>platform-svc / auth</td><td>로그인/가입</td><td>4</td></tr><tr><td>Stripe API</td><td>platform-svc / billing</td><td>결제/구독</td><td>6</td></tr><tr><td>FCM</td><td>platform-svc / notification</td><td>푸시 알림</td><td>3</td></tr><tr><td>AWS SES</td><td>platform-svc / notification</td><td>이메일</td><td>3</td></tr><tr><td>OpenAI API</td><td>learning-svc / learning-ai</td><td>임베딩/생성</td><td>4</td></tr><tr><td>Anthropic Claude</td><td>learning-svc / learning-ai</td><td>RAG/생성</td><td>3</td></tr><tr><td><strong>합계</strong></td><td></td><td></td><td><strong>35</strong></td></tr></tbody></table>
 
+<hr/>
+<h2 id="스트리밍-응답-sse-목킹">스트리밍 응답 (SSE) 목킹</h2>
+<h3 id="wiremock-chunkeddribbledelay">WireMock chunkedDribbleDelay</h3>
+<pre class="code-block" data-lang="java"><code>stubFor(post(<span class="str">"/anthropic/v1/messages"</span>)
+    .withRequestBody(containing(<span class="str">"stream"</span>))
+    .willReturn(aResponse()
+        .withStatus(<span class="num">200</span>)
+        .withHeader(<span class="str">"Content-Type"</span>, <span class="str">"text/event-stream"</span>)
+        .withBody(<span class="str">"""
+            event: content_block_delta
+            data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"머신"}}
+
+            event: content_block_delta
+            data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"러닝은"}}
+
+            event: message_stop
+            data: {"type":"message_stop"}
+
+            """</span>)
+        .withChunkedDribbleDelay(<span class="num">3</span>, <span class="num">500</span>)
+    ));</code></pre>
+<h3 id="python-respx-스트리밍">Python respx 스트리밍</h3>
+<pre class="code-block" data-lang="python"><code><span class="kw">import</span> respx, httpx
+
+<span class="anno">@respx</span>.mock
+<span class="kw">async</span> <span class="kw">def</span> test_streaming_qa():
+    sse_body = (
+        <span class="str">'event: content_block_delta\n'</span>
+        <span class="str">'data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"답변"}}\n\n'</span>
+        <span class="str">'event: message_stop\n'</span>
+        <span class="str">'data: {"type":"message_stop"}\n\n'</span>
+    )
+    respx.post(<span class="str">"https://api.anthropic.com/v1/messages"</span>).mock(
+        return_value=httpx.Response(<span class="num">200</span>, content=sse_body,
+            headers={<span class="str">"content-type"</span>: <span class="str">"text/event-stream"</span>})
+    )</code></pre>
+<hr/>
+<h2 id="circuit-breaker-테스트-패턴">Circuit Breaker 테스트 패턴</h2>
+<h3 id="resilience4j-설정-application-testyml">Resilience4j 설정 (application-test.yml)</h3>
+<pre class="code-block" data-lang="yaml"><code><span class="key">resilience4j</span>:
+  <span class="key">circuitbreaker</span>:
+    <span class="key">instances</span>:
+      <span class="key">stripe</span>:
+        <span class="key">sliding-window-size</span>: <span class="num">5</span>
+        <span class="key">failure-rate-threshold</span>: <span class="num">50</span>
+        <span class="key">wait-duration-in-open-state</span>: 10s</code></pre>
+<h3 id="wiremock-시나리오-기반-테스트">WireMock 시나리오 기반 테스트</h3>
+<pre class="code-block" data-lang="java"><code><span class="anno">@Test</span>
+<span class="kw">void</span> stripe_circuitBreaker_shouldOpenAfterFailures() {
+    <span class="cmt">// given — 첫 3번은 503</span>
+    stubFor(post(urlPathEqualTo(<span class="str">"/stripe/v1/checkout/sessions"</span>))
+        .inScenario(<span class="str">"cb-test"</span>).whenScenarioStateIs(STARTED)
+        .willReturn(aResponse().withStatus(<span class="num">503</span>))
+        .willSetStateTo(<span class="str">"fail-1"</span>));
+    <span class="cmt">// ... fail-2, fail-3 동일 패턴</span>
+
+    <span class="cmt">// when — 4번째 호출</span>
+    <span class="cmt">// then — CircuitBreakerOpenException 발생 (WireMock 호출 없이)</span>
+    assertThrows(CallNotPermittedException.class, () -&gt;
+        stripeClient.createCheckoutSession(request));
+}</code></pre>
+<hr/>
+<h2 id="mock-route-map">Mock Route Map</h2>
+<table class="md-table">
+  <thead><tr><th>#</th><th>서비스/모듈</th><th>실제 경로 (Production)</th><th>Mock 대체 (Test)</th><th>Mock 도구</th><th>Fixture 파일</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>platform-svc / auth</td><td><code>POST https://oauth2.googleapis.com/token</code></td><td><code>POST http://localhost:${wiremock.port}/google/token</code></td><td>WireMock</td><td><code>__files/oauth/google-*.json</code></td></tr>
+    <tr><td>2</td><td>platform-svc / auth</td><td><code>POST https://github.com/login/oauth/access_token</code></td><td><code>POST http://localhost:${wiremock.port}/github/token</code></td><td>WireMock</td><td><code>__files/oauth/github-*.json</code></td></tr>
+    <tr><td>3</td><td>platform-svc / auth</td><td><code>POST https://appleid.apple.com/auth/token</code></td><td><code>POST http://localhost:${wiremock.port}/apple/token</code></td><td>WireMock</td><td><code>__files/oauth/apple-*.json</code></td></tr>
+    <tr><td>4</td><td>platform-svc / auth</td><td><code>POST https://login.microsoftonline.com/.../token</code></td><td><code>POST http://localhost:${wiremock.port}/microsoft/token</code></td><td>WireMock</td><td><code>__files/oauth/microsoft-*.json</code></td></tr>
+    <tr><td>5</td><td>platform-svc / billing</td><td><code>POST https://api.stripe.com/v1/checkout/sessions</code></td><td><code>POST http://localhost:${wiremock.port}/stripe/...</code></td><td>WireMock</td><td><code>__files/stripe/*.json</code></td></tr>
+    <tr><td>6</td><td>platform-svc / notification</td><td><code>POST https://fcm.googleapis.com/v1/.../messages:send</code></td><td><code>POST http://localhost:${wiremock.port}/fcm/...</code></td><td>WireMock</td><td><code>__files/fcm/*.json</code></td></tr>
+    <tr><td>7</td><td>platform-svc / notification</td><td><code>POST https://email.us-east-1.amazonaws.com</code></td><td><code>POST http://localhost:${wiremock.port}/ses</code></td><td>WireMock</td><td><code>__files/ses/*.xml</code></td></tr>
+    <tr><td>8</td><td>learning-ai / embeddings</td><td><code>POST https://api.openai.com/v1/embeddings</code></td><td><code>respx.post(...)</code></td><td>respx</td><td><code>fixtures/openai/embeddings.json</code></td></tr>
+    <tr><td>9</td><td>learning-ai / generation</td><td><code>POST https://api.anthropic.com/v1/messages</code></td><td><code>respx.post(...)</code></td><td>respx</td><td><code>fixtures/anthropic/messages.json</code></td></tr>
+  </tbody>
+</table>
+
   </main>
   <footer class="doc-footer">
     <span>Synapse · Mocking Docs v1.0 · 2026-05-14</span>

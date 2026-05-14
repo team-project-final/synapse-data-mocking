@@ -831,6 +831,71 @@ FIXTURE_DIR = Path(__file__).parent / <span class="str">"fixtures"</span> / <spa
 <table class="md-table"><thead><tr><th>토픽</th><th>platform</th><th>engagement</th><th>knowledge</th><th>learning-card</th><th>learning-ai</th></tr></thead><tbody><tr><td>note.created</td><td></td><td></td><td><strong>P</strong></td><td></td><td><strong>C</strong></td></tr><tr><td>note.updated</td><td></td><td></td><td><strong>P</strong></td><td></td><td><strong>C</strong></td></tr><tr><td>note.deleted</td><td></td><td></td><td><strong>P</strong></td><td></td><td></td></tr><tr><td>card.reviewed</td><td></td><td><strong>C</strong></td><td></td><td><strong>P</strong></td><td></td></tr><tr><td>user.registered</td><td><strong>P</strong></td><td></td><td></td><td></td><td></td></tr><tr><td>billing.subscription.changed</td><td><strong>P</strong></td><td></td><td></td><td></td><td></td></tr><tr><td>audit.event</td><td><strong>C</strong></td><td></td><td></td><td></td><td></td></tr><tr><td>community.deck.shared</td><td><strong>C</strong></td><td><strong>P</strong></td><td></td><td></td><td></td></tr><tr><td>community.note.shared</td><td><strong>C</strong></td><td><strong>P</strong></td><td></td><td></td><td></td></tr><tr><td>community.group.created</td><td><strong>C</strong></td><td><strong>P</strong></td><td></td><td></td><td></td></tr><tr><td>community.group.joined</td><td><strong>C</strong></td><td><strong>P</strong></td><td></td><td></td><td></td></tr><tr><td>community.report.created</td><td></td><td><strong>P</strong></td><td></td><td></td><td></td></tr><tr><td>gamification.xp.earned</td><td><strong>C</strong></td><td><strong>P</strong></td><td></td><td></td><td></td></tr><tr><td>gamification.badge.earned</td><td><strong>C</strong></td><td><strong>P</strong></td><td></td><td></td><td></td></tr><tr><td>gamification.level.up</td><td><strong>C</strong></td><td><strong>P</strong></td><td></td><td></td><td></td></tr><tr><td>notification.send</td><td><strong>C</strong></td><td><strong>P</strong></td><td></td><td></td><td></td></tr><tr><td>card.review.due</td><td><strong>C</strong></td><td></td><td></td><td><strong>P</strong></td><td></td></tr><tr><td>graph.notes.linked</td><td></td><td></td><td><strong>P</strong></td><td></td><td></td></tr></tbody></table>
 <blockquote><strong>P</strong> = Producer, <strong>C</strong> = Consumer</blockquote>
 
+<hr/>
+<h2 id="kafka-consumer-실패-처리-dlq">Kafka Consumer 실패 처리 (DLQ)</h2>
+<h3 id="dlq-네이밍-규칙">DLQ 네이밍 규칙</h3>
+<pre class="code-block" data-lang=""><code>{original-topic}.DLQ</code></pre>
+<p>예: <code>note.created.DLQ</code>, <code>card.reviewed.DLQ</code></p>
+<h3 id="재시도-정책">재시도 정책</h3>
+<table class="md-table"><thead><tr><th>항목</th><th>값</th></tr></thead><tbody><tr><td>최대 재시도</td><td>3회</td></tr><tr><td>백오프</td><td>exponential (1s, 2s, 4s)</td></tr><tr><td>DLQ 전송 조건</td><td>3회 모두 실패 시</td></tr></tbody></table>
+<h3 id="spring-kafka-dlq-설정">Spring Kafka DLQ 설정</h3>
+<pre class="code-block" data-lang="java"><code><span class="anno">@Bean</span>
+<span class="kw">public</span> ConcurrentKafkaListenerContainerFactory&lt;String, Object&gt; kafkaListenerContainerFactory() {
+    <span class="kw">var</span> factory = <span class="kw">new</span> ConcurrentKafkaListenerContainerFactory&lt;String, Object&gt;();
+    factory.setConsumerFactory(consumerFactory());
+    factory.setCommonErrorHandler(<span class="kw">new</span> DefaultErrorHandler(
+        <span class="kw">new</span> DeadLetterPublishingRecoverer(kafkaTemplate,
+            (record, ex) -&gt; <span class="kw">new</span> TopicPartition(record.topic() + <span class="str">".DLQ"</span>, record.partition())),
+        <span class="kw">new</span> ExponentialBackOff(<span class="num">1000</span>L, <span class="num">2.0</span>) {{ setMaxElapsedTime(<span class="num">10000</span>L); }}
+    ));
+    <span class="kw">return</span> factory;
+}</code></pre>
+<h3 id="dlq-테스트-패턴">DLQ 테스트 패턴</h3>
+<pre class="code-block" data-lang="java"><code><span class="anno">@Test</span>
+<span class="kw">void</span> consumeNote_whenProcessingFails_shouldSendToDLQ() {
+    <span class="cmt">// given — 처리 실패하는 잘못된 이벤트</span>
+    <span class="type">String</span> poisonPill = <span class="str">"""
+        {"specversion":"1.0","type":"note.created","data":{"noteId":null}}
+        """</span>;
+
+    kafkaTestHelper.publishAndWait(<span class="str">"note.created"</span>, <span class="str">"key-1"</span>, poisonPill, Duration.ofSeconds(<span class="num">5</span>));
+
+    <span class="cmt">// then — DLQ에 도착</span>
+    List&lt;ConsumerRecord&lt;String, Object&gt;&gt; dlqRecords =
+        kafkaTestHelper.consumeMessages(<span class="str">"note.created.DLQ"</span>, <span class="num">1</span>, Duration.ofSeconds(<span class="num">10</span>));
+    assertThat(dlqRecords).hasSize(<span class="num">1</span>);
+}</code></pre>
+<hr/>
+<h2 id="userdeleted-이벤트">user.deleted 이벤트</h2>
+<table class="md-table"><thead><tr><th>항목</th><th>값</th></tr></thead><tbody><tr><td>Producer</td><td>platform-svc/auth</td></tr><tr><td>Consumers</td><td>knowledge-svc/note (soft delete)</td></tr></tbody></table>
+<pre class="code-block" data-lang="json"><code>{
+  <span class="key">"specversion"</span>: <span class="str">"1.0"</span>,
+  <span class="key">"id"</span>: <span class="str">"evt-00000000-0000-0000-0000-000000000302"</span>,
+  <span class="key">"source"</span>: <span class="str">"synapse/platform-svc"</span>,
+  <span class="key">"type"</span>: <span class="str">"user.deleted"</span>,
+  <span class="key">"subject"</span>: <span class="str">"users/user-00000000-0000-0000-0000-000000000001"</span>,
+  <span class="key">"time"</span>: <span class="str">"2026-01-15T10:00:00Z"</span>,
+  <span class="key">"tenantid"</span>: <span class="str">"tenant-00000000-0000-0000-0000-000000000001"</span>,
+  <span class="key">"datacontenttype"</span>: <span class="str">"application/json"</span>,
+  <span class="key">"data"</span>: {
+    <span class="key">"userId"</span>: <span class="str">"user-00000000-0000-0000-0000-000000000001"</span>,
+    <span class="key">"reason"</span>: <span class="str">"user_requested"</span>,
+    <span class="key">"deletedAt"</span>: <span class="str">"2026-01-15T10:00:00Z"</span>
+  }
+}</code></pre>
+<hr/>
+<h2 id="mock-route-map">Mock Route Map</h2>
+<table class="md-table">
+  <thead><tr><th>#</th><th>서비스/모듈</th><th>실제 경로 (Production)</th><th>Mock 대체 (Test)</th><th>Mock 도구</th><th>Fixture 파일</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>all producers</td><td>Kafka broker <code>kafka:9092</code></td><td><code>@EmbeddedKafka</code> (in-memory)</td><td>EmbeddedKafka</td><td>(자동 설정)</td></tr>
+    <tr><td>2</td><td>all consumers</td><td>Kafka consumer group 구독</td><td><code>KafkaTestHelper.consumeMessages()</code></td><td>EmbeddedKafka</td><td><code>fixtures/kafka/{topic}.json</code></td></tr>
+    <tr><td>3</td><td>Java producers</td><td><code>KafkaTemplate.send(topic, key, event)</code></td><td><code>KafkaTestHelper.publishAndWait()</code></td><td>EmbeddedKafka</td><td><code>fixtures/kafka/{topic}.json</code></td></tr>
+    <tr><td>4</td><td>Python producers</td><td><code>confluent_kafka.Producer.produce()</code></td><td><code>unittest.mock.MagicMock</code></td><td>mock</td><td><code>fixtures/kafka/{topic}.json</code></td></tr>
+    <tr><td>5</td><td>Schema Registry</td><td><code>http://schema-registry:8081</code></td><td>Embedded Schema Registry</td><td>EmbeddedKafka</td><td><code>synapse-shared/src/main/avro/...</code></td></tr>
+  </tbody>
+</table>
+
   </main>
   <footer class="doc-footer">
     <span>Synapse · Mocking Docs v1.0 · 2026-05-14</span>

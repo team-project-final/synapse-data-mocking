@@ -384,6 +384,20 @@
     <span class="key">weekly-cron</span>: <span class="str">"0 0 1 * * MON"</span>
     <span class="key">monthly-cron</span>: <span class="str">"0 0 1 1 * *"</span></code></pre>
 
+<hr/>
+<h2 id="mock-route-map">Mock Route Map</h2>
+<table class="md-table">
+  <thead><tr><th>#</th><th>서비스/모듈</th><th>실제 경로 (Production)</th><th>Mock 대체 (Test)</th><th>Mock 도구</th><th>Fixture 파일</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>engagement-svc / community</td><td><code>POST /internal/decks/copy</code> (→ learning-card)</td><td>Spring Cloud Contract stub</td><td>Contract Stub Runner</td><td><code>stubs/copyDeck.groovy</code></td></tr>
+    <tr><td>2</td><td>engagement-svc / gamification</td><td>Kafka <code>card.reviewed</code> (Consumer)</td><td>EmbeddedKafka</td><td>EmbeddedKafka</td><td><code>fixtures/kafka/card-reviewed.json</code></td></tr>
+    <tr><td>3</td><td>engagement-svc / gamification</td><td>Kafka <code>gamification.xp.earned</code> (Producer)</td><td>EmbeddedKafka</td><td>EmbeddedKafka</td><td><code>fixtures/kafka/xp-earned.json</code></td></tr>
+    <tr><td>4</td><td>engagement-svc / gamification</td><td>Kafka <code>gamification.level.up</code> (Producer)</td><td>EmbeddedKafka</td><td>EmbeddedKafka</td><td><code>fixtures/kafka/level-up.json</code></td></tr>
+    <tr><td>5</td><td>engagement-svc / gamification</td><td>Redis <code>leaderboard:{period}:{key}</code> (ZSET)</td><td>Testcontainers Redis</td><td>Testcontainers</td><td>(런타임 시드)</td></tr>
+    <tr><td>6</td><td>engagement-svc / community</td><td>Kafka <code>community.deck.shared</code> (Producer)</td><td>EmbeddedKafka</td><td>EmbeddedKafka</td><td><code>fixtures/kafka/deck-shared.json</code></td></tr>
+  </tbody>
+</table>
+
   </main>
   <footer class="doc-footer">
     <span>Synapse · Mocking Docs v1.0 · 2026-05-14</span>

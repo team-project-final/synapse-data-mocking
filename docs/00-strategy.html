@@ -387,6 +387,80 @@ Contract.make {
 <h2 id="7-문서-참조-맵">7. 문서 참조 맵</h2>
 <table class="md-table"><thead><tr><th>문서</th><th>참조 대상</th></tr></thead><tbody><tr><td><code>01-platform-svc-mocking.md</code></td><td>→ 06 (Kafka), → 07 (OAuth, Stripe, FCM, SES)</td></tr><tr><td><code>02-engagement-svc-mocking.md</code></td><td>→ 06 (Kafka), → 04 (Internal API contract)</td></tr><tr><td><code>03-knowledge-svc-mocking.md</code></td><td>→ 06 (Kafka), → 07 (S3)</td></tr><tr><td><code>04-learning-svc-mocking.md</code></td><td>→ 06 (Kafka), → 07 (OpenAI, Claude)</td></tr><tr><td><code>05-frontend-mocking.md</code></td><td>→ 01~04 (API 응답 형식 참조)</td></tr><tr><td><code>06-kafka-event-mocking.md</code></td><td>→ synapse-shared 레포 Avro 스키마</td></tr><tr><td><code>07-external-api-mocking.md</code></td><td>(독립)</td></tr></tbody></table>
 
+<hr/>
+<h2 id="9-테스트-데이터-teardown-전략">9. 테스트 데이터 Teardown 전략</h2>
+<h3 id="91-서비스별-권장-방식">9.1 서비스별 권장 방식</h3>
+<table class="md-table"><thead><tr><th>서비스</th><th>방식</th><th>이유</th></tr></thead><tbody><tr><td>platform-svc (Java)</td><td><code>@Transactional</code> 롤백</td><td>대부분 단일 DB 트랜잭션. 속도 우선</td></tr><tr><td>engagement-svc (Java)</td><td><code>@Sql(executionPhase=AFTER, scripts="truncate.sql")</code></td><td>Redis + DB 혼합 — 롤백만으로 Redis 정리 불가</td></tr><tr><td>knowledge-svc (Java)</td><td>Testcontainers 재생성</td><td>ES + pgvector + S3 — 컨테이너 재시작이 가장 깔끔</td></tr><tr><td>learning-card (Java)</td><td><code>@Transactional</code> 롤백</td><td>단일 DB</td></tr><tr><td>learning-ai (Python)</td><td><code>pytest</code> fixture scope=function</td><td>fakeredis + Testcontainers 자동 정리</td></tr></tbody></table>
+<h3 id="92-teardown-순서-주의사항">9.2 Teardown 순서 주의사항</h3>
+<pre class="code-block" data-lang="sql"><code>-- truncate.sql (FK 의존성 순서 준수)
+TRUNCATE TABLE xp_events, user_badges, user_xp_summary CASCADE;
+TRUNCATE TABLE shared_decks, group_members, study_groups CASCADE;
+-- Redis는 @AfterEach에서 flushAll()</code></pre>
+<h3 id="93-안티패턴">9.3 안티패턴</h3>
+<ul><li><code>DELETE FROM</code> 대신 <code>TRUNCATE ... CASCADE</code> 사용 (FK 제약 자동 처리)</li><li><code>@DirtiesContext</code>는 느리므로 최후 수단으로만 사용</li></ul>
+<hr/>
+<h2 id="10-병렬-테스트-실행-안전성">10. 병렬 테스트 실행 안전성</h2>
+<h3 id="101-junit-5-병렬-설정">10.1 JUnit 5 병렬 설정</h3>
+<pre class="code-block" data-lang="properties"><code># junit-platform.properties
+junit.jupiter.execution.parallel.enabled = true
+junit.jupiter.execution.parallel.mode.default = same_thread
+junit.jupiter.execution.parallel.mode.classes.default = concurrent</code></pre>
+<h3 id="102-포트-충돌-방지">10.2 포트 충돌 방지</h3>
+<ul><li><code>@AutoConfigureWireMock(port = 0)</code> — 랜덤 포트 할당</li><li><code>@DynamicPropertySource</code>로 런타임에 URL 주입</li><li>Testcontainers는 자동으로 랜덤 포트 매핑</li></ul>
+<h3 id="103-testcontainers-reuse-모드">10.3 Testcontainers <code>reuse</code> 모드</h3>
+<pre class="code-block" data-lang="properties"><code># ~/.testcontainers.properties
+testcontainers.reuse.enable=true</code></pre>
+<pre class="code-block" data-lang="java"><code><span class="anno">@Container</span>
+<span class="kw">static</span> PostgreSQLContainer&lt;?&gt; postgres = <span class="kw">new</span> PostgreSQLContainer&lt;&gt;(<span class="str">"pgvector/pgvector:pg16"</span>)
+    .withReuse(<span class="kw">true</span>);</code></pre>
+<ul><li>장점: 컨테이너 시작 시간 절약 (첫 실행 후 재사용)</li><li>주의: 테스트 간 데이터 격리를 teardown으로 보장해야 함</li></ul>
+<hr/>
+<h2 id="11-contract-버전-관리-전략">11. Contract 버전 관리 전략</h2>
+<h3 id="111-stub-버전-네이밍">11.1 Stub 버전 네이밍</h3>
+<pre class="code-block" data-lang=""><code>com.synapse:learning-card:1.2.0:stubs</code></pre>
+<ul><li>MAJOR: 하위 호환성 깨지는 변경 (필드 삭제, 타입 변경)</li><li>MINOR: 하위 호환 변경 (필드 추가, optional 필드)</li><li><code>+</code> (latest): 개발 환경에서만 사용</li></ul>
+<h3 id="112-계약-변경-프로세스">11.2 계약 변경 프로세스</h3>
+<ol><li><strong>Provider가 contract 수정</strong> → PR에 contract diff 포함</li><li><strong>Consumer CI에서 새 stub으로 테스트</strong> → 실패 시 사전 감지</li><li><strong>양측 합의 후</strong> → Provider가 stub publish, Consumer가 업데이트</li></ol>
+<h3 id="113-하위-호환성-검증">11.3 하위 호환성 검증</h3>
+<pre class="code-block" data-lang="java"><code><span class="anno">@Test</span>
+<span class="kw">void</span> contractBackwardCompatibility() {
+    <span class="cmt">// 이전 버전 stub으로도 현재 Consumer가 동작하는지 검증</span>
+    <span class="cmt">// stubsMode = CLASSPATH 로 이전 버전 jar 지정</span>
+}</code></pre>
+<hr/>
+<h2 id="12-환경별-mock-토글-전략">12. 환경별 Mock 토글 전략</h2>
+<h3 id="121-spring-boot-profile-전환">12.1 Spring Boot Profile 전환</h3>
+<table class="md-table"><thead><tr><th>환경</th><th>Profile</th><th>Mock 범위</th></tr></thead><tbody><tr><td>로컬 개발</td><td><code>local</code></td><td>Docker Compose (실제 인프라) + WireMock (외부 API)</td></tr><tr><td>CI 단위 테스트</td><td><code>test</code></td><td>Testcontainers + WireMock + EmbeddedKafka</td></tr><tr><td>CI 통합 테스트</td><td><code>integration</code></td><td>Testcontainers + WireMock</td></tr><tr><td>Staging</td><td><code>staging</code></td><td>실제 인프라 + 실제 외부 API (sandbox)</td></tr></tbody></table>
+<h3 id="122-flutter-mock-토글">12.2 Flutter Mock 토글</h3>
+<pre class="code-block" data-lang="dart"><code><span class="cmt">// lib/core/config/app_config.dart</span>
+<span class="kw">class</span> AppConfig {
+  <span class="kw">static</span> <span class="kw">bool</span> <span class="kw">get</span> useMock =&gt;
+    <span class="kw">const</span> <span class="kw">bool</span>.fromEnvironment(<span class="str">'USE_MOCK'</span>, defaultValue: <span class="kw">false</span>);
+}
+
+<span class="cmt">// 빌드 명령</span>
+<span class="cmt">// 테스트: flutter test</span>
+<span class="cmt">// Mock 개발: flutter run --dart-define=USE_MOCK=true</span>
+<span class="cmt">// 프로덕션: flutter run (USE_MOCK=false by default)</span></code></pre>
+<hr/>
+<h2 id="13-멀티테넌트-격리-테스트-패턴">13. 멀티테넌트 격리 테스트 패턴</h2>
+<h3 id="131-시드-데이터">13.1 시드 데이터</h3>
+<ul><li><code>tenant-...001</code> (Free) / <code>tenant-...002</code> (Team)</li><li><code>user-...001</code> (tenant-001 소속) / <code>user-...003</code> (tenant-002 소속)</li></ul>
+<h3 id="132-공통-격리-테스트-패턴">13.2 공통 격리 테스트 패턴</h3>
+<pre class="code-block" data-lang="java"><code><span class="anno">@Test</span>
+<span class="kw">void</span> tenantIsolation_shouldReject403WhenAccessingOtherTenantData() {
+    <span class="cmt">// given — tenant-002의 Owner 토큰</span>
+    <span class="type">String</span> token = JwtTestFactory.createToken(<span class="str">"user-...003"</span>, <span class="str">"tenant-...002"</span>, <span class="str">"owner"</span>);
+
+    <span class="cmt">// when — tenant-001의 노트에 접근 시도</span>
+    mockMvc.perform(get(<span class="str">"/notes/note-...001"</span>)
+        .header(<span class="str">"Authorization"</span>, <span class="str">"Bearer "</span> + token))
+      .andExpect(status().isForbidden())
+      .andExpect(jsonPath(<span class="str">"$.error.code"</span>).value(<span class="str">"FORBIDDEN"</span>));
+}</code></pre>
+<h3 id="133-서비스별-적용">13.3 서비스별 적용</h3>
+<ul><li><strong>knowledge-svc</strong>: 노트/그래프 조회 시 tenantId 필터</li><li><strong>engagement-svc</strong>: 그룹/리더보드 tenantId 격리</li><li><strong>learning-card</strong>: 덱/카드 조회 시 tenantId WHERE 조건</li></ul>
+
   </main>
   <footer class="doc-footer">
     <span>Synapse · Mocking Docs v1.0 · 2026-05-14</span>

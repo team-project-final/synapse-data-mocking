@@ -545,6 +545,23 @@
     <span class="key">endpoint-url</span>: http://localhost:${wiremock.server.port}/ses
     <span class="key">from-address</span>: noreply@synapse.app</code></pre>
 
+<hr/>
+<h2 id="mock-route-map">Mock Route Map</h2>
+<table class="md-table">
+  <thead><tr><th>#</th><th>서비스/모듈</th><th>실제 경로 (Production)</th><th>Mock 대체 (Test)</th><th>Mock 도구</th><th>Fixture 파일</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>platform-svc / auth</td><td><code>POST https://oauth2.googleapis.com/token</code></td><td><code>POST http://localhost:${wiremock.port}/google/token</code></td><td>WireMock</td><td><code>__files/oauth/google-token-success.json</code></td></tr>
+    <tr><td>2</td><td>platform-svc / auth</td><td><code>GET https://openidconnect.googleapis.com/v1/userinfo</code></td><td><code>GET http://localhost:${wiremock.port}/google/userinfo</code></td><td>WireMock</td><td><code>__files/oauth/google-userinfo.json</code></td></tr>
+    <tr><td>3</td><td>platform-svc / auth</td><td>Redis <code>refresh_token:{userId}</code></td><td>Testcontainers Redis</td><td>Testcontainers</td><td>(런타임 생성)</td></tr>
+    <tr><td>4</td><td>platform-svc / billing</td><td><code>POST https://api.stripe.com/v1/checkout/sessions</code></td><td><code>POST http://localhost:${wiremock.port}/stripe/v1/checkout/sessions</code></td><td>WireMock</td><td><code>__files/stripe/checkout-session.json</code></td></tr>
+    <tr><td>5</td><td>platform-svc / billing</td><td>Stripe Webhook → <code>/billing/webhooks</code></td><td>WireMock + 수동 POST</td><td>WireMock</td><td><code>__files/stripe/webhook-checkout-completed.json</code></td></tr>
+    <tr><td>6</td><td>platform-svc / notification</td><td><code>POST https://fcm.googleapis.com/v1/.../messages:send</code></td><td><code>POST http://localhost:${wiremock.port}/fcm/v1/.../messages:send</code></td><td>WireMock</td><td><code>__files/fcm/send-success.json</code></td></tr>
+    <tr><td>7</td><td>platform-svc / notification</td><td><code>POST https://email.us-east-1.amazonaws.com</code> (SES)</td><td><code>POST http://localhost:${wiremock.port}/ses</code></td><td>WireMock</td><td><code>__files/ses/send-success.xml</code></td></tr>
+    <tr><td>8</td><td>platform-svc / auth</td><td>Kafka <code>user.registered</code> (Producer)</td><td>EmbeddedKafka</td><td>EmbeddedKafka</td><td><code>fixtures/kafka/user-registered.json</code></td></tr>
+    <tr><td>9</td><td>platform-svc / audit</td><td>Kafka 7개 토픽 (Consumer)</td><td>EmbeddedKafka</td><td>EmbeddedKafka</td><td><code>fixtures/kafka/{topic}.json</code></td></tr>
+  </tbody>
+</table>
+
   </main>
   <footer class="doc-footer">
     <span>Synapse · Mocking Docs v1.0 · 2026-05-14</span>

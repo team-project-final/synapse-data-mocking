@@ -475,6 +475,21 @@ record WikilinkTestCase(<span class="type">String</span> input, <span class="typ
 <span class="key">jwt</span>:
   <span class="key">secret</span>: test-jwt-secret-key-must-be-at-least-<span class="num">256</span>-bits-long-for-hs256</code></pre>
 
+<hr/>
+<h2 id="mock-route-map">Mock Route Map</h2>
+<table class="md-table">
+  <thead><tr><th>#</th><th>서비스/모듈</th><th>실제 경로 (Production)</th><th>Mock 대체 (Test)</th><th>Mock 도구</th><th>Fixture 파일</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>knowledge-svc / note</td><td>Elasticsearch <code>notes</code> 인덱스</td><td>Testcontainers ES</td><td>Testcontainers</td><td>(nori analyzer 매핑)</td></tr>
+    <tr><td>2</td><td>knowledge-svc / note</td><td><code>PUT https://s3.amazonaws.com/{bucket}/{key}</code> (presigned)</td><td><code>PUT http://localhost:${wiremock.port}/s3/...</code></td><td>WireMock</td><td><code>__files/s3/presigned-put.json</code></td></tr>
+    <tr><td>3</td><td>knowledge-svc / note</td><td>Kafka <code>note.created/updated/deleted</code> (Producer)</td><td>EmbeddedKafka</td><td>EmbeddedKafka</td><td><code>fixtures/kafka/note-created.json</code></td></tr>
+    <tr><td>4</td><td>knowledge-svc / note</td><td>Kafka <code>user.deleted</code> (Consumer)</td><td>EmbeddedKafka</td><td>EmbeddedKafka</td><td><code>fixtures/kafka/user-deleted.json</code></td></tr>
+    <tr><td>5</td><td>knowledge-svc / graph</td><td>PostgreSQL <code>note_links</code> 테이블</td><td>Testcontainers PG</td><td>Testcontainers</td><td><code>seed/note_links.sql</code></td></tr>
+    <tr><td>6</td><td>knowledge-svc / chunking</td><td><code>POST /internal/embeddings</code> (→ learning-ai)</td><td>WireMock</td><td>WireMock</td><td><code>__files/embeddings/embedding-16dim.json</code></td></tr>
+    <tr><td>7</td><td>knowledge-svc / chunking</td><td>PostgreSQL+pgvector <code>note_chunks</code> 테이블</td><td>Testcontainers PG(pgvector)</td><td>Testcontainers</td><td><code>seed/note_chunks.sql</code></td></tr>
+  </tbody>
+</table>
+
   </main>
   <footer class="doc-footer">
     <span>Synapse · Mocking Docs v1.0 · 2026-05-14</span>

@@ -527,6 +527,23 @@ env =
     KAFKA_BOOTSTRAP_SERVERS=localhost:9092
     ELASTICSEARCH_URL=http://localhost:9200</code></pre>
 
+<hr/>
+<h2 id="mock-route-map">Mock Route Map</h2>
+<table class="md-table">
+  <thead><tr><th>#</th><th>서비스/모듈</th><th>실제 경로 (Production)</th><th>Mock 대체 (Test)</th><th>Mock 도구</th><th>Fixture 파일</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>learning-card / srs</td><td>PostgreSQL <code>card_schedules</code> 테이블</td><td>Testcontainers PG</td><td>Testcontainers</td><td><code>seed/card_schedules.sql</code></td></tr>
+    <tr><td>2</td><td>learning-card / srs</td><td>Kafka <code>card.reviewed</code> (Producer)</td><td>EmbeddedKafka</td><td>EmbeddedKafka</td><td><code>fixtures/kafka/card-reviewed.json</code></td></tr>
+    <tr><td>3</td><td>learning-card / srs</td><td>Redis <code>session:{id}</code> (세션 캐시)</td><td>Testcontainers Redis</td><td>Testcontainers</td><td>(런타임 생성)</td></tr>
+    <tr><td>4</td><td>learning-card / contract</td><td><code>POST /internal/decks/copy</code> (Provider)</td><td>Spring Cloud Contract</td><td>Contract Verifier</td><td><code>contracts/copyDeck.groovy</code></td></tr>
+    <tr><td>5</td><td>learning-ai / generation</td><td><code>POST https://api.anthropic.com/v1/messages</code></td><td>respx mock</td><td>respx</td><td><code>fixtures/anthropic/card-generation.json</code></td></tr>
+    <tr><td>6</td><td>learning-ai / embeddings</td><td><code>POST https://api.openai.com/v1/embeddings</code></td><td>respx mock</td><td>respx</td><td><code>fixtures/openai/embeddings.json</code></td></tr>
+    <tr><td>7</td><td>learning-ai / cache</td><td>Redis <code>semantic_cache:{hash}</code></td><td>fakeredis</td><td>fakeredis</td><td>(런타임 생성)</td></tr>
+    <tr><td>8</td><td>learning-ai / search</td><td>PostgreSQL+pgvector 시맨틱 검색</td><td>Testcontainers PG(pgvector)</td><td>Testcontainers</td><td><code>seed/note_chunks.sql</code></td></tr>
+    <tr><td>9</td><td>learning-ai / consumer</td><td>Kafka <code>note.created/updated</code> (Consumer)</td><td>unittest.mock.patch</td><td>mock</td><td><code>fixtures/kafka/note-created.json</code></td></tr>
+  </tbody>
+</table>
+
   </main>
   <footer class="doc-footer">
     <span>Synapse · Mocking Docs v1.0 · 2026-05-14</span>

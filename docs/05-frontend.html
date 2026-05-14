@@ -857,6 +857,21 @@ dart run build_runner build --delete-conflicting-outputs</code></pre>
   {<span class="str">'id'</span>: <span class="str">'deck-002'</span>, <span class="str">'name'</span>: <span class="str">'알고리즘 마스터 덱'</span>, <span class="str">'cardCount'</span>: <span class="num">0</span>, <span class="str">'dueCount'</span>: <span class="num">0</span>},
 ];</code></pre>
 
+<hr/>
+<h2 id="mock-route-map">Mock Route Map</h2>
+<table class="md-table">
+  <thead><tr><th>#</th><th>서비스/모듈</th><th>실제 경로 (Production)</th><th>Mock 대체 (Test)</th><th>Mock 도구</th><th>Fixture 파일</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>flutter-app / auth</td><td><code>POST /auth/login</code>, <code>POST /auth/signup</code></td><td>MockDioAdapter</td><td>dio mock adapter</td><td><code>test/fixtures/auth/*.json</code></td></tr>
+    <tr><td>2</td><td>flutter-app / billing</td><td><code>GET /billing/plans</code>, <code>POST /billing/checkout</code></td><td>MockDioAdapter</td><td>dio mock adapter</td><td><code>test/fixtures/billing/*.json</code></td></tr>
+    <tr><td>3</td><td>flutter-app / community</td><td><code>GET /community/groups</code>, <code>POST /community/groups</code></td><td>MockDioAdapter</td><td>dio mock adapter</td><td><code>test/fixtures/community/*.json</code></td></tr>
+    <tr><td>4</td><td>flutter-app / gamification</td><td><code>GET /gamification/xp</code>, <code>GET /gamification/leaderboard</code></td><td>MockDioAdapter</td><td>dio mock adapter</td><td><code>test/fixtures/gamification/*.json</code></td></tr>
+    <tr><td>5</td><td>flutter-app / notes</td><td><code>GET /notes</code>, <code>POST /notes</code>, <code>GET /notes/search</code></td><td>MockDioAdapter</td><td>dio mock adapter</td><td><code>test/fixtures/notes/*.json</code></td></tr>
+    <tr><td>6</td><td>flutter-app / learning</td><td><code>GET /decks</code>, <code>GET /reviews/queue</code>, <code>POST /ai/generate-cards</code></td><td>MockDioAdapter</td><td>dio mock adapter</td><td><code>test/fixtures/learning/*.json</code></td></tr>
+    <tr><td>7</td><td>flutter-app / graph</td><td><code>GET /graph/data</code>, <code>GET /graph/neighbors/:id</code></td><td>MockDioAdapter</td><td>dio mock adapter</td><td><code>test/fixtures/graph/*.json</code></td></tr>
+  </tbody>
+</table>
+
   </main>
   <footer class="doc-footer">
     <span>Synapse · Mocking Docs v1.0 · 2026-05-14</span>
