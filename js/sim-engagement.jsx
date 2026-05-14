@@ -170,11 +170,15 @@ function XPSimulator() {
       }
       newState.badges = newBadges;
       newState.events = [...prev.events, ...events];
+      setTimeout(() => SimBus.emit("xp.changed", { xp: newState.xp, level: afterLv?.lv || beforeLv?.lv }), 0);
       return newState;
     });
   };
 
-  const reset = () => setState(initial);
+  const reset = () => {
+    setState(initial);
+    SimBus.emit("xp.changed", { xp: initial.xp, level: 3 });
+  };
 
   const progress = nextLevel ? ((state.xp - currentLevel.xp) / (nextLevel.xp - currentLevel.xp)) * 100 : 100;
 
@@ -258,7 +262,15 @@ function XPSimulator() {
 // Leaderboard preview (Redis Sorted Set)
 function LeaderboardPreview() {
   const [period, setPeriod] = useState("weekly");
-  const data = {
+  const [youXp, setYouXp] = useState(null);
+
+  useEffect(() => {
+    const handler = (data) => setYouXp(data.xp);
+    SimBus.on("xp.changed", handler);
+    return () => SimBus.off("xp.changed", handler);
+  }, []);
+
+  const baseData = {
     weekly: [
       { rank: 1, name: "홍길동", xp: 500, lv: 4, you: true },
       { rank: 2, name: "김영희", xp: 350, lv: 3 },
@@ -272,7 +284,20 @@ function LeaderboardPreview() {
       { rank: 4, name: "이수진", xp: 720, lv: 4 }
     ]
   };
-  const list = data[period];
+
+  const list = useMemo(() => {
+    const rows = baseData[period].map(r => {
+      if (r.you && youXp !== null) {
+        const newLv = LEVELS.slice().reverse().find(l => youXp >= l.xp);
+        return { ...r, xp: youXp, lv: newLv?.lv || r.lv };
+      }
+      return { ...r };
+    });
+    rows.sort((a, b) => b.xp - a.xp);
+    rows.forEach((r, i) => r.rank = i + 1);
+    return rows;
+  }, [period, youXp]);
+
   return (
     <div>
       <div className="row" style={{ marginBottom: 12 }}>
@@ -282,11 +307,12 @@ function LeaderboardPreview() {
           ZSET <code>leaderboard:{period}:2026-{period === "weekly" ? "W03" : "01"}</code>
         </span>
       </div>
+      {youXp !== null && <div className="tiny" style={{ marginBottom: 8, color: "var(--cyan-bright)" }}>XP 시뮬레이터와 연동 중 · 현재 XP: {youXp}</div>}
       <table className="table">
         <thead><tr><th>Rank</th><th>User</th><th>XP</th><th>Level</th></tr></thead>
         <tbody>
           {list.map(r => (
-            <tr key={r.rank} style={r.you ? { background: "var(--cyan-fog)" } : null}>
+            <tr key={r.name} style={r.you ? { background: "var(--cyan-fog)" } : null}>
               <td style={{ fontFamily: "var(--font-display)", fontSize: 18, fontWeight: 700 }}>
                 {r.rank === 1 ? "🥇" : r.rank === 2 ? "🥈" : r.rank === 3 ? "🥉" : "#" + r.rank}
               </td>
